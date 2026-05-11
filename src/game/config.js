@@ -25,8 +25,8 @@ export const CONFIG = {
   smashRange: 2.5,
   cameraFov: 58,
   highChargeFov: 66,
-  cameraHeight: 7.4,
-  cameraDistance: 13.5,
+  cameraHeight: 6.8,
+  cameraDistance: 12.4,
   cameraLerp: 0.1,
 };
 

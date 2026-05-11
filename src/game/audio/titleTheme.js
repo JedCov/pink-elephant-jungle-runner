@@ -4,6 +4,8 @@ const STEPS_PER_BAR = 8;
 const LOOKAHEAD_SECONDS = 0.18;
 const SCHEDULER_MS = 45;
 const NOTE_OFFSETS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const PULSE_HARMONICS = 32;
+const pulseWaveCache = new WeakMap();
 
 const SCORE_TEXT = `
 BAR 1
@@ -211,6 +213,25 @@ export function noteNameToFrequency(note) {
   return 440 * 2 ** ((midi - 69) / 12);
 }
 
+function getPulseWave(ctx, dutyCycle) {
+  let waves = pulseWaveCache.get(ctx);
+  if (!waves) {
+    waves = new Map();
+    pulseWaveCache.set(ctx, waves);
+  }
+  if (waves.has(dutyCycle)) return waves.get(dutyCycle);
+
+  const real = new Float32Array(PULSE_HARMONICS + 1);
+  const imag = new Float32Array(PULSE_HARMONICS + 1);
+  for (let harmonic = 1; harmonic <= PULSE_HARMONICS; harmonic += 1) {
+    imag[harmonic] = (2 / (harmonic * Math.PI)) * Math.sin(harmonic * Math.PI * dutyCycle);
+  }
+
+  const wave = ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+  waves.set(dutyCycle, wave);
+  return wave;
+}
+
 function schedulePitchedNote(ctx, output, note, time, duration, options) {
   if (note === "-") return;
   const frequency = noteNameToFrequency(note);
@@ -218,7 +239,11 @@ function schedulePitchedNote(ctx, output, note, time, duration, options) {
 
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  osc.type = options.wave;
+  if (options.dutyCycle) {
+    osc.setPeriodicWave(getPulseWave(ctx, options.dutyCycle));
+  } else {
+    osc.type = options.wave;
+  }
   osc.frequency.setValueAtTime(frequency, time);
   gain.gain.setValueAtTime(0.0001, time);
   gain.gain.exponentialRampToValueAtTime(options.volume, time + 0.012);
@@ -269,8 +294,8 @@ function schedulePercussion(ctx, output, symbol, time) {
 }
 
 function scheduleStep(ctx, output, event, time, stepSeconds) {
-  schedulePitchedNote(ctx, output, event.pulse1, time, stepSeconds * 0.84, { wave: "square", volume: 0.045, hold: 0.58 });
-  schedulePitchedNote(ctx, output, event.pulse2, time, stepSeconds * 0.74, { wave: "square", volume: 0.026, hold: 0.45 });
+  schedulePitchedNote(ctx, output, event.pulse1, time, stepSeconds * 0.84, { wave: "square", dutyCycle: 0.25, volume: 0.045, hold: 0.58 });
+  schedulePitchedNote(ctx, output, event.pulse2, time, stepSeconds * 0.74, { wave: "square", dutyCycle: 0.125, volume: 0.026, hold: 0.45 });
   schedulePitchedNote(ctx, output, event.triangle, time, stepSeconds * 0.62, { wave: "triangle", volume: 0.052, hold: 0.28 });
   schedulePercussion(ctx, output, event.noise, time);
 }

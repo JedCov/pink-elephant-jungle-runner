@@ -4,6 +4,8 @@ export const CONFIG = {
   corridorHalfWidth: 5.6,
   startZ: 6,
   gateZ: -760,
+  finishTriggerDepth: 24,
+  endOfCourseZ: -782,
   playerSize: 2.05,
   hitboxScale: 0.66,
   acceleration: 4.3,
@@ -11,6 +13,8 @@ export const CONFIG = {
   reverseAcceleration: 5.2,
   reverseMaxSpeed: 7.5,
   friction: 2.5,
+  idleDeceleration: 18,
+  minSpeed: 0.05,
   steerSpeed: 10.5,
   turnDamping: 13,
   gravity: -32,
@@ -25,8 +29,8 @@ export const CONFIG = {
   smashRange: 2.5,
   cameraFov: 58,
   highChargeFov: 66,
-  cameraHeight: 7.4,
-  cameraDistance: 13.5,
+  cameraHeight: 6.8,
+  cameraDistance: 12.4,
   cameraLerp: 0.1,
 };
 

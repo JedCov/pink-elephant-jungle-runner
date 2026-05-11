@@ -625,6 +625,28 @@ export default function App() {
       return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - 0.001;
     }
 
+    function obstacleBox(obs) {
+      return {
+        minX: obs.x - obs.w / 2, maxX: obs.x + obs.w / 2,
+        minY: obs.y - obs.h / 2, maxY: obs.y + obs.h / 2,
+        minZ: obs.z - obs.d / 2, maxZ: obs.z + obs.d / 2,
+      };
+    }
+
+    function sweptLowObstaclePlayerBox(obsBox, currentBox, nextBox, nextLocalX, nextY, nextZ) {
+      if (body.speed <= 0 || currentBox.minZ <= obsBox.maxZ || nextBox.minZ > obsBox.maxZ) return null;
+
+      const contactZ = obsBox.maxZ + (nextBox.maxZ - nextBox.minZ) / 2;
+      const travelZ = body.z - nextZ;
+      const t = travelZ > 0 ? clamp((body.z - contactZ) / travelZ, 0, 1) : 1;
+      const contactLocalX = lerp(body.localX, nextLocalX, t);
+      const contactY = lerp(body.y, nextY, t);
+      const contactX = worldX(contactLocalX, contactZ);
+      const contactBox = playerBox(contactX, contactY, contactZ);
+
+      return aabb(contactBox, obsBox) ? contactBox : null;
+    }
+
     function loseLife() {
       body.lives = Math.max(0, body.lives - 1);
       body.health = 100;
@@ -919,11 +941,13 @@ export default function App() {
       const activeObstacles = colliders.concat(crocs);
       for (const obs of activeObstacles) {
         if (!obs.active) continue;
-        const oBox = { minX: obs.x - obs.w / 2, maxX: obs.x + obs.w / 2, minY: obs.y - obs.h / 2, maxY: obs.y + obs.h / 2, minZ: obs.z - obs.d / 2, maxZ: obs.z + obs.d / 2 };
-        if (!aabb(pBox, oBox)) continue;
-        const canRetreat = isReversing && isRetreatingFromObstacle(currentBox, pBox, oBox);
+        const oBox = obstacleBox(obs);
+        let collisionBox = aabb(pBox, oBox) ? pBox : null;
+        if (!collisionBox && obs.type === "log") collisionBox = sweptLowObstaclePlayerBox(oBox, currentBox, pBox, nextLocalX, ny, nz);
+        if (!collisionBox) continue;
+        const canRetreat = isReversing && isRetreatingFromObstacle(currentBox, collisionBox, oBox);
         if (obs.type === "log") {
-          if (pBox.minY < oBox.maxY - 0.18 && !canRetreat) { hurt(false); blocked = true; }
+          if (collisionBox.minY < oBox.maxY - 0.18 && !canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "branch") {
           if (pBox.maxY > oBox.minY + 0.2 && !canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "croc") {
@@ -1009,7 +1033,7 @@ export default function App() {
         }
       }
 
-      if (!blocked || body.smashTimer > 0) {
+      if (!blocked) {
         body.localX = nextLocalX; body.x = nx; body.y = ny; body.z = nz;
       }
       if (wasGrounded && !body.grounded && body.yVelocity <= 0) body.coyoteTimer = CONFIG.coyoteTime;

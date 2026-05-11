@@ -1,4 +1,5 @@
 import { aabb, clamp, lerp } from "./math.js";
+import { createKeys, setKeyState } from "./input.js";
 import { trackCenter, worldX } from "./track.js";
 
 export function runSelfTests() {
@@ -10,5 +11,23 @@ export function runSelfTests() {
   assert("aabb detects overlap", aabb({ minX: 0, maxX: 2, minY: 0, maxY: 2, minZ: 0, maxZ: 2 }, { minX: 1, maxX: 3, minY: 1, maxY: 3, minZ: 1, maxZ: 3 }));
   assert("aabb detects separation", !aabb({ minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1 }, { minX: 2, maxX: 3, minY: 2, maxY: 3, minZ: 2, maxZ: 3 }));
   assert("worldX honours local offset", Math.abs(worldX(2, -50) - trackCenter(-50) - 2) < 0.00001);
+
+  const keys = createKeys();
+  setKeyState(keys, "KeyW", true);
+  assert("W mirrors ArrowUp", keys.ArrowUp);
+  setKeyState(keys, "KeyA", true);
+  assert("A mirrors ArrowLeft", keys.ArrowLeft);
+  setKeyState(keys, "KeyS", true);
+  assert("S mirrors ArrowDown", keys.ArrowDown);
+  setKeyState(keys, "KeyD", true);
+  assert("D mirrors ArrowRight", keys.ArrowRight);
+  setKeyState(keys, "ShiftLeft", true);
+  assert("Shift mirrors Space", keys.Space);
+  setKeyState(keys, "ShiftLeft", false);
+  assert("Shift release clears Space when spacebar is not held", !keys.Space);
+  setKeyState(keys, "Space", true);
+  setKeyState(keys, "ShiftRight", true);
+  setKeyState(keys, "ShiftRight", false);
+  assert("Space remains held after releasing Shift", keys.Space);
   return results;
 }

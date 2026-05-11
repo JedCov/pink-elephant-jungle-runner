@@ -3,7 +3,7 @@ import * as THREE from "three";
 
 import { Icon } from "./components/Icon.jsx";
 import { CONFIG } from "./game/config.js";
-import { createKeys, isAllowedKey } from "./game/input.js";
+import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, lerp } from "./game/math.js";
 import { NOTES, noteToFrequency } from "./game/audio.js";
@@ -507,22 +507,16 @@ export default function App() {
 
     function keyDown(e) {
       if (!isAllowedKey(e.code)) return;
-      keyRef.current[e.code] = true;
-      if (e.code === "ShiftLeft" || e.code === "ShiftRight") keyRef.current.KeyZ = true;
-      if (e.code === "KeyE") keyRef.current.KeyE = true;
-      if (e.code === "KeyD" && !keyRef.current.__dHeld) {
-        keyRef.current.__dHeld = true;
+      if (e.code === "Backquote" && !keyRef.current.__pressed.Backquote) {
         debugRef.current = !debugRef.current;
         setDebug(debugRef.current);
       }
+      setKeyState(keyRef.current, e.code, true);
     }
 
     function keyUp(e) {
       if (!isAllowedKey(e.code)) return;
-      keyRef.current[e.code] = false;
-      if (e.code === "ShiftLeft" || e.code === "ShiftRight") keyRef.current.KeyZ = false;
-      if (e.code === "KeyE") keyRef.current.KeyE = false;
-      if (e.code === "KeyD") keyRef.current.__dHeld = false;
+      setKeyState(keyRef.current, e.code, false);
     }
 
     function blur() { keyRef.current = createKeys(); }
@@ -1312,7 +1306,7 @@ export default function App() {
               Begin the Trail
             </button>
             <div className="mt-6 grid grid-cols-2 gap-2 text-left text-xs text-amber-50/70">
-              {[["↑", "Build Charge"], ["← →", "Sway the Trail"], ["Tap Space", "Leap"], ["Hold Space / ↓", "Belly-Slide"], ["Z / Shift", "Trunk-Smash"], ["E", "Spin Attack"], ["D", "Debug Panel"]].map(([key, label]) => (
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space / Shift", "Leap"], ["Hold Space / Shift / ↓ / S", "Belly-Slide"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
                 <div key={key} className="flex items-center gap-2 rounded-xl px-3 py-2"
                   style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>

@@ -1,5 +1,6 @@
 import { aabb, clamp, lerp } from "./math.js";
 import { createKeys, setKeyState } from "./input.js";
+import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
 
 export function runSelfTests() {
@@ -43,6 +44,14 @@ export function runSelfTests() {
 
   assert("track has visible left-right bends", maxCenter - minCenter > 12);
   assert("track bends stay readable", maxReadableAngle < 0.35);
+
+  assert("title theme contains all 32 bars", TITLE_THEME.sequence.length === TITLE_THEME.stepsPerBar * 32);
+  assert("title theme hook starts at bar 21", TITLE_THEME.sequence[20 * TITLE_THEME.stepsPerBar].bar === 21);
+  assert(
+    "title theme keeps four polyphonic lanes",
+    ["pulse1", "pulse2", "triangle", "noise"].every((voice) => voice in TITLE_THEME.sequence[0]),
+  );
+  assert("title theme note conversion tunes A4", Math.abs(noteNameToFrequency("A4") - 440) < 0.00001);
 
   const keys = createKeys();
 

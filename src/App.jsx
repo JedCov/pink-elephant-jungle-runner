@@ -641,7 +641,7 @@ export default function App() {
         body.doubleUsed = true;
         body.jumpBufferTimer = 0;
         burst(body.x, body.y + 0.6, body.z, "#ff89d2", 8, 0.2);
-        popText("EAR-BOUNCE!", body.x, body.y + 2.8, body.z, "#ffc3ed");
+        popText("BIG Bounce!", body.x, body.y + 2.8, body.z, "#ffc3ed");
         playTone("double");
       }
 
@@ -822,7 +822,7 @@ export default function App() {
       else if (body.spinTimer > 0) body.state = "Spin Attack";
       else if (body.smashTimer > 0) body.state = "Trunk-Smash";
       else if (body.slideTimer > 0) body.state = "Belly-Slide";
-      else if (!body.grounded) body.state = body.doubleUsed ? "Ear-Bounce" : "Leap";
+      else if (!body.grounded) body.state = body.doubleUsed ? "BIG Bounce" : "Leap";
       else if (charge > 0.82) body.state = "Mighty Charge";
       else if (body.speed > 0.5) body.state = "Charging";
       else body.state = "Ready";
@@ -948,7 +948,7 @@ export default function App() {
         if (local < 58) return "Follow the golden fruit and feel the big pink rhythm.";
         if (local < 102) return "Use ← → to sway through the jungle trail.";
         if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
-        if (local < 168) return "Tap Space again in the air for an Ear-Bounce.";
+        if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
         if (local < 194) return "Hold Space or press ↓ to Belly-Slide under vines.";
         if (local < 218) return "Charge hard, press Z for Trunk-Smash, or E for a Spin Attack on monkeys.";
         if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
@@ -957,7 +957,7 @@ export default function App() {
       if (local < 58) return `${sectionLabel()}: build a braver Elephant Charge.`;
       if (local < 102) return "Sway through the fruit trail. Big feet, gentle steering.";
       if (local < 134) return "Leap the log. Keep the shadow clear.";
-      if (local < 168) return "Reach the high fruit with an Ear-Bounce.";
+      if (local < 168) return "Reach the high fruit with a BIG Bounce.";
       if (local < 194) return "Belly-Slide low. Let the vines skim overhead.";
       if (local < 218) return "Trunk-Smash the crate. Charge makes the jungle listen.";
       if (local < 238) return "Crocodile creek again. Stop, read, then stampede.";
@@ -1048,7 +1048,7 @@ export default function App() {
 
       const stateColours = {
         "Mighty Charge": "#ff4fb3", Charging: "#ffd34a", Leap: "#7dd8ff",
-        "Ear-Bounce": "#c4b5fd", "Belly-Slide": "#6ee7b7", "Trunk-Smash": "#fb923c",
+        "BIG Bounce": "#c4b5fd", "Belly-Slide": "#6ee7b7", "Trunk-Smash": "#fb923c",
         "Spin Attack": "#ffcf66", "Jungle Bump": "#f87171", "Herd Resting": "#94a3b8",
         "Jungle Gate": "#ffd34a", Ready: "rgba(255,255,255,0.45)",
       };
@@ -1304,7 +1304,7 @@ export default function App() {
             <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>
             <h2 className="display-title mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.05em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
-              Stomp through a guided jungle corridor. Gather golden fruit, leap logs, Ear-Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
+              Stomp through a guided jungle corridor. Gather golden fruit, leap logs, BIG Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
             </p>
             <button onClick={startDemo}
               className="mt-7 rounded-full px-10 py-4 text-base font-black text-slate-950 transition hover:scale-105 active:scale-95"

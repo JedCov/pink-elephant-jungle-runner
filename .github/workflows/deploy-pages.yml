@@ -1,4 +1,4 @@
-name: Deploy playable preview to GitHub Pages
+name: Deploy game to GitHub Pages
 
 on:
   push:
@@ -30,10 +30,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build static preview
+      - name: Build static site
         run: npm run build
 
       - name: Configure GitHub Pages
@@ -42,7 +42,7 @@ jobs:
       - name: Upload static site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment

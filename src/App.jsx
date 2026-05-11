@@ -15,6 +15,74 @@ import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js"
 
 const nl = String.fromCharCode(10);
 
+function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
+  const vertices = [];
+  const uvs = [];
+  const indices = [];
+  const rows = Math.floor((startZ - endZ) / step) + 1;
+
+  for (let i = 0; i <= rows; i++) {
+    const z = Math.max(endZ, startZ - i * step);
+    const angle = trackAngle(z);
+    const normalX = Math.cos(angle);
+    const centerX = trackCenter(z);
+    vertices.push(centerX + innerLocalX * normalX, 0, z, centerX + outerLocalX * normalX, 0, z);
+    uvs.push(0, i * 0.18, 1, i * 0.18);
+    if (i < rows) {
+      const a = i * 2;
+      indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function makeLowPolyTree(trunkMat, leafMats, rng = Math.random, scale = 1) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * scale, 0.38 * scale, 3.3 * scale + rng() * 0.9, 7), trunkMat);
+  trunk.position.y = 1.55 * scale;
+  trunk.castShadow = true;
+
+  const lowerLeaves = new THREE.Mesh(
+    new THREE.ConeGeometry((1.25 + rng() * 0.65) * scale, (2.4 + rng() * 0.5) * scale, 7),
+    leafMats[Math.floor(rng() * leafMats.length)],
+  );
+  lowerLeaves.position.y = 3.55 * scale;
+  lowerLeaves.castShadow = true;
+
+  const upperLeaves = new THREE.Mesh(
+    new THREE.ConeGeometry((0.85 + rng() * 0.35) * scale, 1.85 * scale, 7),
+    leafMats[Math.floor(rng() * leafMats.length)],
+  );
+  upperLeaves.position.y = 4.85 * scale;
+  upperLeaves.castShadow = true;
+
+  tree.add(trunk, lowerLeaves, upperLeaves);
+  tree.rotation.y = rng() * Math.PI;
+  return tree;
+}
+
+function makeLowPolyBush(leafMats, rng = Math.random, scale = 1) {
+  const bush = new THREE.Group();
+  const clumpCount = 2 + Math.floor(rng() * 3);
+  for (let i = 0; i < clumpCount; i++) {
+    const clump = new THREE.Mesh(
+      new THREE.DodecahedronGeometry((0.55 + rng() * 0.45) * scale, 0),
+      leafMats[Math.floor(rng() * leafMats.length)],
+    );
+    clump.position.set((rng() - 0.5) * 1.2 * scale, 0.45 * scale + rng() * 0.28 * scale, (rng() - 0.5) * 1.2 * scale);
+    clump.scale.y = 0.72 + rng() * 0.38;
+    clump.castShadow = true;
+    bush.add(clump);
+  }
+  return bush;
+}
+
 export default function App() {
   const mountRef = useRef(null);
   const keyRef = useRef(createKeys());
@@ -143,8 +211,8 @@ export default function App() {
     let fps = 60;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#132516");
-    scene.fog = new THREE.Fog("#24401f", 28, 150);
+    scene.background = new THREE.Color("#102412");
+    scene.fog = new THREE.Fog("#1f3a1b", 24, 132);
 
     const camera = new THREE.PerspectiveCamera(CONFIG.cameraFov, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 360);
     camera.position.set(0, 8, 16);
@@ -177,22 +245,28 @@ export default function App() {
     const pathGroup = new THREE.Group();
     scene.add(pathGroup);
     const pathMat = new THREE.MeshStandardMaterial({ map: pathTexture, roughness: 0.95 });
-    const bankMat = makeMaterial("#173d25", { roughness: 1 });
-    for (let z = 12; z > -820; z -= 10) {
-      const cx = trackCenter(z);
-      const angle = trackAngle(z);
-      const segment = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.16, 10.8), pathMat);
-      segment.position.set(cx, 0.02, z);
-      segment.rotation.y = angle;
-      segment.receiveShadow = true;
-      pathGroup.add(segment);
-      const leftBank = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 10.8), bankMat);
-      leftBank.position.set(worldX(-CONFIG.corridorHalfWidth - 0.55, z), 0.22, z);
-      leftBank.rotation.y = angle;
-      const rightBank = leftBank.clone();
-      rightBank.position.x = worldX(CONFIG.corridorHalfWidth + 0.55, z);
-      pathGroup.add(leftBank, rightBank);
-    }
+    const shoulderMat = makeMaterial("#6f4a27", { roughness: 1 });
+    const bankMat = makeMaterial("#174026", { roughness: 1 });
+    const lipMat = makeMaterial("#d5a25b", { roughness: 0.92 });
+    const safeHalfWidth = CONFIG.corridorHalfWidth + 0.62;
+    const pathSurface = new THREE.Mesh(createTrackRibbonGeometry(-safeHalfWidth, safeHalfWidth, 14, -824, 3.2), pathMat);
+    pathSurface.position.y = 0.055;
+    pathSurface.receiveShadow = true;
+    pathGroup.add(pathSurface);
+
+    [
+      [-safeHalfWidth - 0.86, -safeHalfWidth, shoulderMat, 0.045],
+      [safeHalfWidth, safeHalfWidth + 0.86, shoulderMat, 0.045],
+      [-safeHalfWidth - 1.22, -safeHalfWidth - 0.86, bankMat, 0.16],
+      [safeHalfWidth + 0.86, safeHalfWidth + 1.22, bankMat, 0.16],
+      [-safeHalfWidth - 0.12, -safeHalfWidth + 0.08, lipMat, 0.105],
+      [safeHalfWidth - 0.08, safeHalfWidth + 0.12, lipMat, 0.105],
+    ].forEach(([inner, outer, material, y]) => {
+      const ribbon = new THREE.Mesh(createTrackRibbonGeometry(inner, outer, 14, -824, 3.2), material);
+      ribbon.position.y = y;
+      ribbon.receiveShadow = true;
+      pathGroup.add(ribbon);
+    });
 
     const colliders = [], pickups = [], crocs = [], particles = [], pops = [];
     const enemies = [], collectibleMeshes = [];
@@ -226,20 +300,39 @@ export default function App() {
     const treeGroup = new THREE.Group();
     scene.add(treeGroup);
     const trunkMat = makeMaterial("#5d371d");
-    const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c")];
-    for (let z = 12; z > -820; z -= 10) {
+    const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c"), makeMaterial("#0f5b33")];
+    for (let z = 16; z > -824; z -= 8) {
       [-1, 1].forEach((side) => {
-        const tree = new THREE.Group();
-        tree.position.set(worldX(side * (8 + Math.random() * 7), z), 0, z + Math.random() * 4 - 2);
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.36, 3.4 + Math.random(), 7), trunkMat);
-        trunk.position.y = 1.6; trunk.castShadow = true;
-        const leaves1 = new THREE.Mesh(new THREE.ConeGeometry(1.3 + Math.random() * 0.5, 2.7, 7), leafMats[Math.floor(Math.random() * leafMats.length)]);
-        leaves1.position.y = 3.8; leaves1.castShadow = true;
-        const leaves2 = new THREE.Mesh(new THREE.ConeGeometry(1, 2, 7), leafMats[Math.floor(Math.random() * leafMats.length)]);
-        leaves2.position.y = 5; leaves2.castShadow = true;
-        tree.add(trunk, leaves1, leaves2);
-        tree.rotation.y = Math.random() * Math.PI;
-        treeGroup.add(tree);
+        const jitterZ = z + Math.random() * 5 - 2.5;
+        const nearTree = makeLowPolyTree(trunkMat, leafMats, Math.random, 0.95 + Math.random() * 0.35);
+        nearTree.position.set(worldX(side * (7.1 + Math.random() * 3.1), jitterZ), 0, jitterZ);
+        treeGroup.add(nearTree);
+
+        const backTree = makeLowPolyTree(trunkMat, leafMats, Math.random, 0.82 + Math.random() * 0.5);
+        backTree.position.set(worldX(side * (12.2 + Math.random() * 6.4), jitterZ - 2 + Math.random() * 4), 0, jitterZ - 2 + Math.random() * 4);
+        treeGroup.add(backTree);
+
+        const bush = makeLowPolyBush(leafMats, Math.random, 0.9 + Math.random() * 0.55);
+        bush.position.set(worldX(side * (6.45 + Math.random() * 2.0), jitterZ + 1.4), 0.02, jitterZ + 1.4);
+        treeGroup.add(bush);
+
+        if (Math.abs(z % 24) < 0.1) {
+          const foregroundTree = makeLowPolyTree(trunkMat, leafMats, Math.random, 1.55 + Math.random() * 0.35);
+          foregroundTree.position.set(worldX(side * (8.8 + Math.random() * 2.5), jitterZ), 0, jitterZ);
+          treeGroup.add(foregroundTree);
+        }
+
+        if (Math.abs(z % 32) < 0.1) {
+          const canopy = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(2.0 + Math.random() * 1.2, 0),
+            leafMats[Math.floor(Math.random() * leafMats.length)],
+          );
+          canopy.position.set(worldX(side * (5.9 + Math.random() * 2.8), jitterZ), 7.0 + Math.random() * 1.8, jitterZ);
+          canopy.scale.set(1.25, 0.62, 0.9);
+          canopy.rotation.y = Math.random() * Math.PI;
+          canopy.castShadow = true;
+          treeGroup.add(canopy);
+        }
       });
     }
 

@@ -1,18 +1,116 @@
 # Pink Elephant Jungle Runner 2
-A playable React + Three.js browser preview of Pink Elephant Jungle Runner. The public preview is deployed with GitHub Pages at <https://jedcov.github.io/pink-elephant-jungle-runner2/> after the Pages workflow runs on `main`.
-## Project structure
-- `src/App.jsx` — the game component and gameplay logic.
-- `src/main.jsx` — browser entrypoint that mounts the game.
-- `index.html` — static preview shell with relative asset paths that work locally and under the GitHub Pages repository subpath.
-- `tsconfig.json` — JSX-to-JavaScript preview build configuration.
-- `.github/workflows/deploy-pages.yml` — GitHub Actions workflow that builds and deploys the playable preview to GitHub Pages.
-## Run the playable preview
+
+Pink Elephant Jungle Runner 2 is a playable browser game prototype built with React and Three.js. You guide a pink elephant through a jungle runner course, collecting fruit and pineapples, avoiding obstacles, and reaching the jungle gate.
+
+The public GitHub Pages version is published at:
+
+<https://jedcov.github.io/pink-elephant-jungle-runner2/>
+
+## Tech Stack
+
+- **React** for the game shell and HUD overlays.
+- **Three.js** for the 3D scene, player, track, obstacles, pickups, and camera.
+- **Vite** for local development, production builds, and static output.
+- **GitHub Actions + GitHub Pages** for deployment.
+
+## Install Dependencies
+
 ```bash
-npm run start
+npm install
 ```
-Then open <http://127.0.0.1:5173/>. In hosted workspaces, forward or open port `5173` from the preview/ports panel. The same static build is deployed to <https://jedcov.github.io/pink-elephant-jungle-runner2/> when changes land on `main`.
-## Build only
+
+If you are working in CI or another clean environment with a lockfile available, prefer:
+
+```bash
+npm ci
+```
+
+## Run Locally
+
+```bash
+npm run dev
+```
+
+Then open the local URL printed by Vite, usually <http://localhost:5173/>. In hosted workspaces, forward port `5173` from the ports or preview panel.
+
+## Build
+
 ```bash
 npm run build
 ```
-The build emits ignored preview files into `dist/`.
+
+The production build is written to `dist/`. That folder is generated output and should not be committed.
+
+## Preview the Production Build
+
+```bash
+npm run preview
+```
+
+This serves the already-built `dist/` folder so you can sanity-check the same static assets GitHub Pages will publish.
+
+## Deployment
+
+Deployment is handled by `.github/workflows/deploy-pages.yml`.
+
+On every push to `main`, the workflow:
+
+1. Checks out the repository.
+2. Installs Node dependencies.
+3. Runs `npm run build`.
+4. Uploads only the generated `dist/` folder as the GitHub Pages artifact.
+5. Deploys that artifact to GitHub Pages.
+
+Vite is configured with a relative base path in `vite.config.js`, so the built game can run correctly from the repository subpath used by GitHub Pages.
+
+## Project Structure
+
+```text
+.
+├── .github/workflows/
+│   └── deploy-pages.yml       # GitHub Pages build and deploy workflow
+├── index.html                 # Vite HTML entrypoint
+├── src/
+│   ├── App.jsx                # Main React game component and game loop
+│   ├── main.jsx               # Browser entrypoint and stylesheet import
+│   ├── components/
+│   │   └── Icon.jsx           # Small reusable HUD icon component
+│   ├── game/
+│   │   ├── audio.js           # Music note data and frequency helper
+│   │   ├── config.js          # Core movement, camera, and world constants
+│   │   ├── input.js           # Keyboard state helpers
+│   │   ├── level.js           # Level layout: fruit, obstacles, rivers, enemies
+│   │   ├── math.js            # Shared math and collision helpers
+│   │   ├── selfTests.js       # Lightweight runtime sanity checks
+│   │   ├── track.js           # Curved jungle path coordinate helpers
+│   │   └── rendering/
+│   │       ├── materials.js   # Three.js material factory
+│   │       └── textures.js    # Generated canvas textures for terrain/path
+│   └── styles/
+│       └── game-ui.css        # Local utility CSS used by the HUD overlays
+├── package.json               # Scripts and dependencies
+├── tsconfig.json              # JavaScript-aware TypeScript project check config
+└── vite.config.js             # Vite build config for GitHub Pages
+```
+
+## Where the Main Game Logic Lives
+
+- **Game loop and scene assembly:** `src/App.jsx`
+- **Movement and camera constants:** `src/game/config.js`
+- **Level and obstacle placement:** `src/game/level.js`
+- **Collision helpers:** `src/game/math.js`
+- **Keyboard controls:** `src/game/input.js`
+- **Track curve helpers:** `src/game/track.js`
+- **Generated materials/textures:** `src/game/rendering/`
+- **HUD styling:** `src/styles/game-ui.css`
+
+## Adding Future Assets or Levels
+
+- Add static image, audio, or model files under `src/assets/` if they are imported from code, or under `public/` if they should be copied directly to the build output.
+- Add new level placement data in `src/game/level.js`. Keep level data declarative where possible so it is easy to tune without changing the game loop.
+- Add new movement, camera, or tuning constants in `src/game/config.js` instead of scattering magic numbers through the game loop.
+- Add reusable UI pieces under `src/components/`.
+
+## Notes for Future Cleanup
+
+The refactor keeps gameplay conservative: the main scene and update loop remain in `src/App.jsx` to avoid changing behaviour accidentally. Future work can gradually extract larger systems, such as player physics, obstacle collision handling, audio playback, and enemy updates, once there are automated browser-level regression checks.

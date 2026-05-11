@@ -4,10 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "npm run build && python3 -m http.server 5173 --bind 0.0.0.0"
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest",
+    "three": "latest"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "latest",
+    "vite": "latest"
   }
 }

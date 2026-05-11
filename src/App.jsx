@@ -1259,8 +1259,17 @@ export default function App() {
           <div className="w-full max-w-xl rounded-[2rem] p-8 text-center"
             style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)" }}>
             <div className="mb-2 text-xs font-black uppercase tracking-[0.38em] text-emerald-200/75">Three-Loop Jungle Trial</div>
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full text-4xl"
-              style={{ background: "rgba(244,114,182,0.16)", border: "1px solid rgba(244,114,182,0.32)" }}>🐘</div>
+            <div className="title-elephant-badge mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+              aria-label="Pink elephant mascot" role="img">
+              <span className="title-elephant-mascot" aria-hidden="true">
+                <span className="title-elephant-ear" />
+                <span className="title-elephant-body" />
+                <span className="title-elephant-head" />
+                <span className="title-elephant-trunk" />
+                <span className="title-elephant-leg title-elephant-leg-front" />
+                <span className="title-elephant-leg title-elephant-leg-back" />
+              </span>
+            </div>
             <h1 className="text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "-0.01em" }}>Pink Elephant</h1>
             <h2 className="mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.04em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">

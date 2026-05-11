@@ -1270,8 +1270,8 @@ export default function App() {
                 <span className="title-elephant-leg title-elephant-leg-back" />
               </span>
             </div>
-            <h1 className="text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "-0.01em" }}>Pink Elephant</h1>
-            <h2 className="mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.04em" }}>Jungle Dash</h2>
+            <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>
+            <h2 className="display-title mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.05em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
               Stomp through a guided jungle corridor. Gather golden fruit, leap logs, Ear-Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
             </p>
@@ -1300,7 +1300,7 @@ export default function App() {
           <div className="rounded-[2rem] p-10 text-center"
             style={{ background: "rgba(12,20,10,0.88)", border: "1px solid rgba(255,200,80,0.35)", boxShadow: "0 0 65px rgba(255,190,80,0.22)" }}>
             <div className="mb-4 text-6xl">🏆</div>
-            <h2 className="text-4xl font-black text-amber-200">Jungle Gate Reached!</h2>
+            <h2 className="display-title text-4xl font-black text-amber-200">Jungle Gate Reached!</h2>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-amber-50/70">
               The herd made it through. The jungle is yours.
             </p>
@@ -1324,7 +1324,7 @@ export default function App() {
           <div className="rounded-[2rem] p-10 text-center"
             style={{ background: "rgba(24,10,12,0.9)", border: "1px solid rgba(255,120,140,0.35)", boxShadow: "0 0 65px rgba(255,80,120,0.18)" }}>
             <div className="mb-4 text-6xl">⚠️</div>
-            <h2 className="text-4xl font-black text-red-100">The Herd Needs Rest</h2>
+            <h2 className="display-title text-4xl font-black text-red-100">The Herd Needs Rest</h2>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-red-50/70">
               Too many jungle bumps. Restart and build Charge more carefully.
             </p>

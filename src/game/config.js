@@ -8,6 +8,8 @@ export const CONFIG = {
   hitboxScale: 0.66,
   acceleration: 4.3,
   maxSpeed: 40,
+  reverseAcceleration: 5.2,
+  reverseMaxSpeed: 7.5,
   friction: 2.5,
   steerSpeed: 10.5,
   turnDamping: 13,

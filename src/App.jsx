@@ -452,6 +452,15 @@ export default function App() {
       return { minX: nx - hw, maxX: nx + hw, minY: ny - hh, maxY: ny + hh, minZ: nz - hd, maxZ: nz + hd };
     }
 
+    function zOverlapDepth(a, b) {
+      return Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ);
+    }
+
+    function isRetreatingFromObstacle(currentBox, nextBox, obstacleBox) {
+      if (!aabb(currentBox, obstacleBox)) return false;
+      return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - 0.001;
+    }
+
     function loseLife() {
       body.lives = Math.max(0, body.lives - 1);
       body.health = 100;
@@ -597,10 +606,13 @@ export default function App() {
       if (body.grounded) body.coyoteTimer = CONFIG.coyoteTime;
       else body.coyoteTimer = Math.max(0, body.coyoteTimer - dt);
 
-      if (playing && body.hurtTimer === 0) {
+      const wantsSlide = playing && k.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > 2 && body.hurtTimer === 0;
+      const wantsReverse = playing && k.ArrowDown && body.grounded && !wantsSlide;
+      if (playing && (body.hurtTimer === 0 || wantsReverse)) {
         if (k.ArrowUp) body.speed = Math.min(CONFIG.maxSpeed, body.speed + CONFIG.acceleration * dt);
+        else if (wantsReverse) body.speed = Math.max(-CONFIG.reverseMaxSpeed, body.speed - CONFIG.reverseAcceleration * dt);
         else body.speed *= Math.exp(-CONFIG.friction * dt);
-        if (body.speed < 0.05) body.speed = 0;
+        if (Math.abs(body.speed) < 0.05) body.speed = 0;
       } else if (!playing) {
         body.speed = 0;
       }
@@ -687,7 +699,7 @@ export default function App() {
 
       body.jumpHeld = spaceDown;
       if (playing && body.bufferedSlide && body.grounded) startSlide();
-      if (playing && k.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > 2) startSlide();
+      if (wantsSlide) startSlide();
 
       if (!body.grounded) {
         const gravityMultiplier = body.yVelocity < 0 ? CONFIG.fallGravityMultiplier : 1;
@@ -711,6 +723,8 @@ export default function App() {
       }
 
       const pBox = playerBox(nx, ny, nz);
+      const currentBox = playerBox(body.x, body.y, body.z);
+      const isReversing = playing && body.speed < 0 && nz > body.z;
       let blocked = false;
 
       if (body.smashActionTimer > 0) {
@@ -727,15 +741,16 @@ export default function App() {
         if (!obs.active) continue;
         const oBox = { minX: obs.x - obs.w / 2, maxX: obs.x + obs.w / 2, minY: obs.y - obs.h / 2, maxY: obs.y + obs.h / 2, minZ: obs.z - obs.d / 2, maxZ: obs.z + obs.d / 2 };
         if (!aabb(pBox, oBox)) continue;
+        const canRetreat = isReversing && isRetreatingFromObstacle(currentBox, pBox, oBox);
         if (obs.type === "log") {
-          if (pBox.minY < oBox.maxY - 0.18) { hurt(false); blocked = true; }
+          if (pBox.minY < oBox.maxY - 0.18 && !canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "branch") {
-          if (pBox.maxY > oBox.minY + 0.2) { hurt(false); blocked = true; }
+          if (pBox.maxY > oBox.minY + 0.2 && !canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "croc") {
-          hurt(true); blocked = true;
+          if (!canRetreat) { hurt(true); blocked = true; }
         } else if (obs.type === "crate") {
           if (charge >= CONFIG.smashChargeThreshold || body.smashActionTimer > 0) breakCrate(obs);
-          else { hurt(false); blocked = true; }
+          else if (!canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "gate") {
           if (!completeRef.current) {
             body.completed = true;
@@ -745,7 +760,7 @@ export default function App() {
             playTone("gate");
             setComplete(true);
           }
-          blocked = true;
+          if (!canRetreat) blocked = true;
         }
       }
 

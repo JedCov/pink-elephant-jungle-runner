@@ -7,6 +7,7 @@ import { createKeys, isAllowedKey } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, lerp } from "./game/math.js";
 import { NOTES, noteToFrequency } from "./game/audio.js";
+import { createTitleThemePlayer } from "./game/audio/titleTheme.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import { runSelfTests } from "./game/selfTests.js";
@@ -22,6 +23,7 @@ export default function App() {
   const gameOverRef = useRef(false);
   const debugRef = useRef(false);
   const audioRef = useRef(null);
+  const titleThemeRef = useRef(null);
   const musicRef = useRef({ enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 });
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
@@ -59,9 +61,22 @@ export default function App() {
     if (!AudioContext) return null;
     const ctx = new AudioContext();
     audioRef.current = ctx;
+    if (ctx.state === "suspended") ctx.resume();
     musicRef.current.enabled = true;
     musicRef.current.nextNoteTime = ctx.currentTime + 0.08;
     return ctx;
+  }
+
+
+  function startTitleTheme() {
+    const ctx = startAudio();
+    if (!ctx || startedRef.current || completeRef.current || gameOverRef.current) return;
+    if (!titleThemeRef.current) titleThemeRef.current = createTitleThemePlayer(ctx);
+    titleThemeRef.current.start();
+  }
+
+  function stopTitleTheme(fadeSeconds = 0.22) {
+    titleThemeRef.current?.stop(fadeSeconds);
   }
 
   function playTone(type, atTime = null) {
@@ -93,6 +108,21 @@ export default function App() {
     osc.start(now);
     osc.stop(now + settings[2] + 0.03);
   }
+
+  useEffect(() => {
+    function beginTitleThemeFromGesture() {
+      startTitleTheme();
+    }
+
+    window.addEventListener("pointerdown", beginTitleThemeFromGesture);
+    window.addEventListener("keydown", beginTitleThemeFromGesture);
+    return () => {
+      window.removeEventListener("pointerdown", beginTitleThemeFromGesture);
+      window.removeEventListener("keydown", beginTitleThemeFromGesture);
+      titleThemeRef.current?.dispose();
+      titleThemeRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const results = runSelfTests();
@@ -1124,6 +1154,7 @@ export default function App() {
   }, [testSummary]);
 
   const startDemo = () => {
+    stopTitleTheme(0.18);
     startAudio();
     startedRef.current = true;
     completeRef.current = false;

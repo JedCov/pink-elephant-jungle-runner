@@ -270,6 +270,32 @@ export default function App() {
 
     const colliders = [], pickups = [], crocs = [], particles = [], pops = [];
     const enemies = [], collectibleMeshes = [];
+    const particlePool = [];
+    const popPools = new Map();
+    const pooledParticleGeometry = new THREE.SphereGeometry(1, 8, 8);
+    const pickupPopPresets = [
+      ["SUGAR CANE!", "#a7ffbf", 3],
+      ["BONUS ELEPHANT!", "#b7ffb7", 2],
+      ["TRUNK-SMASH!", "#ffe08a", 2],
+      ["BIG Bounce!", "#ffc3ed", 2],
+      ["SPIN ATTACK!", "#ffcf66", 2],
+      ["JUNGLE GATE!", "#fff1a6", 2],
+      ["SNAP!", "#9aff99", 2],
+      ["OOPS!", "#ff8794", 2],
+      ["HERD LIFE LOST", "#ff9aa9", 1],
+      ["HERD NEEDS REST", "#ff9aa9", 1],
+    ];
+
+    for (let i = 0; i < 96; i++) {
+      const mesh = new THREE.Mesh(
+        pooledParticleGeometry,
+        new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0, depthWrite: false }),
+      );
+      mesh.visible = false;
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+      particlePool.push({ mesh, active: false, life: 0, startLife: 1, vx: 0, vy: 0, vz: 0 });
+    }
 
     const riverMat = new THREE.MeshStandardMaterial({ color: "#237cb4", roughness: 0.35, metalness: 0.08, transparent: true, opacity: 0.82, emissive: "#0a3352", emissiveIntensity: 0.25 });
     LEVEL.rivers.forEach((river) => {
@@ -346,12 +372,13 @@ export default function App() {
       pickups.push({ type: "fruit", mesh: fruit, active: true, x: posOnPath.x, y: pos.y || 1.05, z: posOnPath.z, radius: 0.78 });
     });
 
+    const caneGeometry = new THREE.CylinderGeometry(0.22, 0.22, 1.4, 8);
+    const caneMat = new THREE.MeshStandardMaterial({ color: "#52e879", roughness: 0.45, emissive: "#154d24", emissiveIntensity: 0.7 });
     LEVEL.health.forEach((pos) => {
       const posOnPath = worldPosition(pos.localX, pos.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, 1.25, posOnPath.z);
-      const caneMat = new THREE.MeshStandardMaterial({ color: "#52e879", roughness: 0.45, emissive: "#154d24", emissiveIntensity: 0.7 });
-      const cane = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.4, 8), caneMat);
+      const cane = new THREE.Mesh(caneGeometry, caneMat);
       cane.rotation.z = 0.35;
       const glow = new THREE.PointLight("#54ff83", 1.6, 7);
       group.add(cane, glow);
@@ -509,18 +536,29 @@ export default function App() {
       state: "Ready", completed: false, lastPrompt: "",
     };
 
-    function addParticle(x, y, z, colour, scale = 0.28, life = 1, velocity = {}) {
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(scale, 8, 8), new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.62 }));
-      mesh.position.set(x, y, z);
-      scene.add(mesh);
-      particles.push({ mesh, life, startLife: life, vx: velocity.vx ?? (Math.random() - 0.5) * 2.5, vy: velocity.vy ?? Math.random() * 2.2 + 0.6, vz: velocity.vz ?? (Math.random() - 0.5) * 2.5 });
+    function activateParticle(x, y, z, colour, scale = 0.28, life = 1, velocity = {}) {
+      let particle = particlePool.find((entry) => !entry.active);
+      if (!particle) particle = particles.shift();
+      if (!particle) return;
+      particle.active = true;
+      particle.life = life;
+      particle.startLife = life;
+      particle.vx = velocity.vx ?? (Math.random() - 0.5) * 2.5;
+      particle.vy = velocity.vy ?? Math.random() * 2.2 + 0.6;
+      particle.vz = velocity.vz ?? (Math.random() - 0.5) * 2.5;
+      particle.mesh.position.set(x, y, z);
+      particle.mesh.scale.setScalar(scale);
+      particle.mesh.material.color.set(colour);
+      particle.mesh.material.opacity = 0.62;
+      particle.mesh.visible = true;
+      particles.push(particle);
     }
 
     function burst(x, y, z, colour, count = 8, scale = 0.28) {
-      for (let i = 0; i < count; i++) addParticle(x, y, z, colour, scale, 0.8 + Math.random() * 0.4);
+      for (let i = 0; i < count; i++) activateParticle(x, y, z, colour, scale, 0.8 + Math.random() * 0.4);
     }
 
-    function popText(text, x, y, z, colour = "#fff3b0") {
+    function createPopTexture(text, colour) {
       const canvas = document.createElement("canvas");
       canvas.width = 360; canvas.height = 96;
       const ctx = canvas.getContext("2d");
@@ -533,12 +571,42 @@ export default function App() {
       ctx.fillText(text, 180, 56);
       const tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.SRGBColorSpace;
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-      sprite.position.set(x, y, z);
-      sprite.scale.set(5.5, 1.5, 1);
-      scene.add(sprite);
-      pops.push({ sprite, life: 1, tex });
+      return tex;
     }
+
+    function prewarmPopText(text, colour = "#fff3b0", count = 2) {
+      const key = `${text}|${colour}`;
+      if (popPools.has(key)) return popPools.get(key);
+      const tex = createPopTexture(text, colour);
+      const pool = [];
+      for (let i = 0; i < count; i++) {
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
+        sprite.visible = false;
+        sprite.scale.set(5.5, 1.5, 1);
+        scene.add(sprite);
+        pool.push({ sprite, active: false, life: 0, tex });
+      }
+      popPools.set(key, pool);
+      return pool;
+    }
+
+    function popText(text, x, y, z, colour = "#fff3b0") {
+      const pool = prewarmPopText(text, colour, 2);
+      let pop = pool.find((entry) => !entry.active);
+      if (!pop) pop = pool[0];
+      if (pop.active) {
+        const activeIndex = pops.indexOf(pop);
+        if (activeIndex >= 0) pops.splice(activeIndex, 1);
+      }
+      pop.active = true;
+      pop.life = 1;
+      pop.sprite.position.set(x, y, z);
+      pop.sprite.material.opacity = 1;
+      pop.sprite.visible = true;
+      pops.push(pop);
+    }
+
+    pickupPopPresets.forEach(([text, colour, count]) => prewarmPopText(text, colour, count));
 
     function playerBox(nx, ny, nz) {
       const sliding = body.slideTimer > 0;
@@ -1029,7 +1097,11 @@ export default function App() {
         p.mesh.position.z += p.vz * dt;
         p.mesh.scale.multiplyScalar(1 + dt * 1.5);
         p.mesh.material.opacity = Math.max(0, p.life / p.startLife) * 0.62;
-        if (p.life <= 0) { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); particles.splice(i, 1); }
+        if (p.life <= 0) {
+          p.active = false;
+          p.mesh.visible = false;
+          particles.splice(i, 1);
+        }
       }
 
       for (let i = pops.length - 1; i >= 0; i--) {
@@ -1037,7 +1109,11 @@ export default function App() {
         p.life -= dt * 1.3;
         p.sprite.position.y += dt * 1.8;
         p.sprite.material.opacity = Math.max(0, p.life);
-        if (p.life <= 0) { scene.remove(p.sprite); p.tex.dispose(); p.sprite.material.dispose(); pops.splice(i, 1); }
+        if (p.life <= 0) {
+          p.active = false;
+          p.sprite.visible = false;
+          pops.splice(i, 1);
+        }
       }
     }
 
@@ -1282,6 +1358,14 @@ export default function App() {
       renderer.dispose();
       jungleTexture.dispose();
       pathTexture.dispose();
+      pooledParticleGeometry.dispose();
+      particlePool.forEach((particle) => particle.mesh.material.dispose());
+      popPools.forEach((pool) => {
+        pool[0]?.tex.dispose();
+        pool.forEach((pop) => pop.sprite.material.dispose());
+      });
+      caneGeometry.dispose();
+      caneMat.dispose();
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
     };
   }, [testSummary]);

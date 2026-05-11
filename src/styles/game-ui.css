@@ -171,12 +171,12 @@ button {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at 38% 30%, rgba(255, 212, 236, 0.30), transparent 34%),
-    rgba(244, 114, 182, 0.18);
-  border: 1px solid rgba(249, 168, 212, 0.58);
+    radial-gradient(circle at 38% 30%, rgba(255, 214, 235, 0.38), transparent 34%),
+    rgba(244, 114, 182, 0.24);
+  border: 1px solid rgba(255, 150, 205, 0.70);
   box-shadow:
-    inset 0 1px 10px rgba(255, 205, 233, 0.18),
-    0 0 24px rgba(244, 114, 182, 0.22);
+    inset 0 1px 10px rgba(255, 205, 233, 0.24),
+    0 0 26px rgba(244, 114, 182, 0.30);
 }
 
 .title-elephant-mascot {
@@ -194,8 +194,8 @@ button {
 .title-elephant-leg {
   position: absolute;
   display: block;
-  background: linear-gradient(135deg, #ff9bd1 0%, #ff66b8 55%, #dd3d93 100%);
-  border: 1px solid rgba(255, 221, 240, 0.45);
+  background: linear-gradient(135deg, #ffd1e8 0%, #ff6fb7 42%, #ff2f92 72%, #c91872 100%);
+  border: 1px solid rgba(255, 224, 240, 0.58);
 }
 
 .title-elephant-body {
@@ -204,7 +204,7 @@ button {
   width: 24px;
   height: 16px;
   border-radius: 12px 13px 8px 8px;
-  box-shadow: inset -5px -5px 8px rgba(126, 18, 79, 0.28), inset 3px 3px 6px rgba(255, 235, 246, 0.44);
+  box-shadow: inset -5px -5px 8px rgba(126, 13, 73, 0.34), inset 3px 3px 6px rgba(255, 238, 247, 0.52);
 }
 
 .title-elephant-head {
@@ -213,7 +213,7 @@ button {
   width: 16px;
   height: 15px;
   border-radius: 10px 8px 8px 9px;
-  box-shadow: inset -4px -4px 7px rgba(126, 18, 79, 0.24), inset 3px 3px 6px rgba(255, 235, 246, 0.46);
+  box-shadow: inset -4px -4px 7px rgba(126, 13, 73, 0.30), inset 3px 3px 6px rgba(255, 238, 247, 0.54);
 }
 
 .title-elephant-ear {
@@ -222,7 +222,7 @@ button {
   width: 12px;
   height: 16px;
   border-radius: 60% 46% 56% 50%;
-  background: radial-gradient(circle at 38% 42%, #ffc4e5 0%, #ff89ca 58%, #db3e94 100%);
+  background: radial-gradient(circle at 38% 42%, #ffd8ec 0%, #ff79bd 54%, #f4248b 78%, #bd176b 100%);
   transform: rotate(-9deg);
   z-index: 1;
 }
@@ -236,7 +236,7 @@ button {
   border-top: 0;
   transform: rotate(7deg);
   transform-origin: top center;
-  box-shadow: inset -2px -3px 5px rgba(126, 18, 79, 0.22), inset 2px 1px 4px rgba(255, 235, 246, 0.40);
+  box-shadow: inset -2px -3px 5px rgba(126, 13, 73, 0.30), inset 2px 1px 4px rgba(255, 238, 247, 0.48);
 }
 
 .title-elephant-head::after {

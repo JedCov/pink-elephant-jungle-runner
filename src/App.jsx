@@ -450,7 +450,7 @@ export default function App() {
     gateGlow.position.set(0, 4, 2);
     gate.add(pillarL, pillarR, lintel, gateGlow);
     scene.add(gate);
-    colliders.push({ type: "gate", active: true, mesh: gate, x: trackCenter(LEVEL.gate.z), y: 3, z: LEVEL.gate.z, w: 8.5, h: 6, d: 1.4 });
+    colliders.push({ type: "gate", active: true, mesh: gate, x: trackCenter(LEVEL.gate.z), y: 3, z: LEVEL.gate.z, w: CONFIG.corridorHalfWidth * 2 + 6, h: 6, d: CONFIG.finishTriggerDepth });
 
     const player = new THREE.Group();
     scene.add(player);
@@ -583,6 +583,16 @@ export default function App() {
       if (body.health <= 0) loseLife();
     }
 
+    function completeLevel(popZ = body.z) {
+      if (completeRef.current) return;
+      body.completed = true;
+      completeRef.current = true;
+      body.speed = 0;
+      popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
+      playTone("gate");
+      setComplete(true);
+    }
+
     function breakCrate(obs) {
       obs.active = false;
       obs.mesh.visible = false;
@@ -612,6 +622,7 @@ export default function App() {
 
     function keyDown(e) {
       if (!isAllowedKey(e.code)) return;
+      e.preventDefault();
       if (e.code === "Backquote" && !keyRef.current.__pressed.Backquote) {
         debugRef.current = !debugRef.current;
         setDebug(debugRef.current);
@@ -621,6 +632,7 @@ export default function App() {
 
     function keyUp(e) {
       if (!isAllowedKey(e.code)) return;
+      e.preventDefault();
       setKeyState(keyRef.current, e.code, false);
     }
 
@@ -698,18 +710,28 @@ export default function App() {
 
       const wantsSlide = playing && k.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > 2 && body.hurtTimer === 0;
       const wantsReverse = playing && k.ArrowDown && body.grounded && !wantsSlide;
+      const wantsForward = playing && k.ArrowUp && !wantsReverse;
       if (playing && (body.hurtTimer === 0 || wantsReverse)) {
-        if (k.ArrowUp) body.speed = Math.min(CONFIG.maxSpeed, body.speed + CONFIG.acceleration * dt);
-        else if (wantsReverse) body.speed = Math.max(-CONFIG.reverseMaxSpeed, body.speed - CONFIG.reverseAcceleration * dt);
-        else body.speed *= Math.exp(-CONFIG.friction * dt);
-        if (Math.abs(body.speed) < 0.05) body.speed = 0;
-      } else if (!playing) {
+        if (wantsForward) {
+          body.speed = Math.min(CONFIG.maxSpeed, body.speed + CONFIG.acceleration * dt);
+        } else if (wantsReverse) {
+          body.speed = Math.max(-CONFIG.reverseMaxSpeed, body.speed - CONFIG.reverseAcceleration * dt);
+        } else {
+          body.speed *= Math.exp(-CONFIG.friction * dt);
+          const idleStep = CONFIG.idleDeceleration * dt;
+          body.speed = Math.abs(body.speed) <= idleStep ? 0 : body.speed - Math.sign(body.speed) * idleStep;
+        }
+        if (Math.abs(body.speed) < CONFIG.minSpeed) body.speed = 0;
+      } else if (playing) {
+        body.speed *= Math.exp(-CONFIG.friction * dt);
+        if (Math.abs(body.speed) < CONFIG.minSpeed) body.speed = 0;
+      } else {
         body.speed = 0;
       }
 
       let nextLocalX = body.localX;
       let ny = body.y;
-      const nz = body.z - body.speed * dt;
+      let nz = body.z - body.speed * dt;
 
       if (playing && body.hurtTimer === 0) {
         const steer = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
@@ -717,7 +739,7 @@ export default function App() {
         body.yaw = lerp(body.yaw, steer * -0.22 + trackAngle(nz), 1 - Math.exp(-CONFIG.turnDamping * dt));
       }
 
-      const nx = worldX(nextLocalX, nz);
+      let nx = worldX(nextLocalX, nz);
       const spaceDown = k.Space;
       const spaceJustReleased = !spaceDown && body.jumpHeld;
 
@@ -842,14 +864,7 @@ export default function App() {
           if (charge >= CONFIG.smashChargeThreshold || body.smashActionTimer > 0) breakCrate(obs);
           else if (!canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "gate") {
-          if (!completeRef.current) {
-            body.completed = true;
-            completeRef.current = true;
-            body.speed = 0;
-            popText("JUNGLE GATE!", body.x, body.y + 3, body.z - 2, "#fff1a6");
-            playTone("gate");
-            setComplete(true);
-          }
+          completeLevel(obs.z);
           if (!canRetreat) blocked = true;
         }
       }
@@ -898,6 +913,16 @@ export default function App() {
         } else {
           hurt(false);
         }
+      }
+
+      const finishTriggerStartZ = CONFIG.gateZ + CONFIG.finishTriggerDepth / 2;
+      if (playing && !completeRef.current && (nz <= finishTriggerStartZ || nz <= CONFIG.endOfCourseZ)) {
+        if (nz <= CONFIG.endOfCourseZ) {
+          nz = CONFIG.gateZ;
+          nx = worldX(nextLocalX, nz);
+        }
+        completeLevel(nz);
+        blocked = false;
       }
 
       // Golden pineapple collectibles — always collectible
@@ -1264,6 +1289,7 @@ export default function App() {
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
+    keyRef.current = createKeys();
     startedRef.current = true;
     completeRef.current = false;
     gameOverRef.current = false;

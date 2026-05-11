@@ -11,7 +11,7 @@ import { createTitleThemePlayer } from "./game/audio/titleTheme.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import { runSelfTests } from "./game/selfTests.js";
-import { trackAngle, trackCenter, worldX } from "./game/track.js";
+import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
 
 const nl = String.fromCharCode(10);
 
@@ -187,10 +187,10 @@ export default function App() {
       segment.receiveShadow = true;
       pathGroup.add(segment);
       const leftBank = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 10.8), bankMat);
-      leftBank.position.set(cx - CONFIG.corridorHalfWidth - 0.55, 0.22, z);
+      leftBank.position.set(worldX(-CONFIG.corridorHalfWidth - 0.55, z), 0.22, z);
       leftBank.rotation.y = angle;
       const rightBank = leftBank.clone();
-      rightBank.position.x = cx + CONFIG.corridorHalfWidth + 0.55;
+      rightBank.position.x = worldX(CONFIG.corridorHalfWidth + 0.55, z);
       pathGroup.add(leftBank, rightBank);
     }
 
@@ -202,6 +202,7 @@ export default function App() {
       const cx = trackCenter(river.z);
       const water = new THREE.Mesh(new THREE.BoxGeometry(river.width, 0.12, river.depth), riverMat);
       water.position.set(cx, 0.08, river.z);
+      water.rotation.y = trackAngle(river.z);
       water.receiveShadow = true;
       scene.add(water);
       river.crocs.forEach((croc) => {
@@ -214,7 +215,9 @@ export default function App() {
         snout.position.set(0, 0.02, -0.78);
         teeth.position.set(0, 0.25, -1.28);
         group.add(crocBody, snout, teeth);
-        group.position.set(worldX(croc.localX, river.z), 0.48, river.z + Math.sin(croc.phase) * 5);
+        const startZ = river.z + Math.sin(croc.phase) * 5;
+        const startPos = worldPosition(croc.localX, startZ);
+        group.position.set(startPos.x, 0.48, startPos.z);
         scene.add(group);
         crocs.push({ type: "croc", mesh: group, riverZ: river.z, baseLocalX: croc.localX, phase: croc.phase, x: group.position.x, y: 0.48, z: group.position.z, w: 2.4, h: 0.7, d: 1.35, active: true });
       });
@@ -226,9 +229,8 @@ export default function App() {
     const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c")];
     for (let z = 12; z > -820; z -= 10) {
       [-1, 1].forEach((side) => {
-        const cx = trackCenter(z);
         const tree = new THREE.Group();
-        tree.position.set(cx + side * (8 + Math.random() * 7), 0, z + Math.random() * 4 - 2);
+        tree.position.set(worldX(side * (8 + Math.random() * 7), z), 0, z + Math.random() * 4 - 2);
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.36, 3.4 + Math.random(), 7), trunkMat);
         trunk.position.y = 1.6; trunk.castShadow = true;
         const leaves1 = new THREE.Mesh(new THREE.ConeGeometry(1.3 + Math.random() * 0.5, 2.7, 7), leafMats[Math.floor(Math.random() * leafMats.length)]);
@@ -243,54 +245,54 @@ export default function App() {
 
     const fruitMat = new THREE.MeshStandardMaterial({ color: "#ffd34a", roughness: 0.34, metalness: 0.15, emissive: "#3d2500", emissiveIntensity: 0.25 });
     LEVEL.fruits.forEach((pos) => {
-      const x = worldX(pos.localX, pos.z);
+      const posOnPath = worldPosition(pos.localX, pos.z);
       const fruit = new THREE.Mesh(new THREE.OctahedronGeometry(0.38, 0), fruitMat);
-      fruit.position.set(x, pos.y || 1.05, pos.z);
+      fruit.position.set(posOnPath.x, pos.y || 1.05, posOnPath.z);
       fruit.castShadow = true;
       scene.add(fruit);
-      pickups.push({ type: "fruit", mesh: fruit, active: true, x, y: pos.y || 1.05, z: pos.z, radius: 0.78 });
+      pickups.push({ type: "fruit", mesh: fruit, active: true, x: posOnPath.x, y: pos.y || 1.05, z: posOnPath.z, radius: 0.78 });
     });
 
     LEVEL.health.forEach((pos) => {
-      const x = worldX(pos.localX, pos.z);
+      const posOnPath = worldPosition(pos.localX, pos.z);
       const group = new THREE.Group();
-      group.position.set(x, 1.25, pos.z);
+      group.position.set(posOnPath.x, 1.25, posOnPath.z);
       const caneMat = new THREE.MeshStandardMaterial({ color: "#52e879", roughness: 0.45, emissive: "#154d24", emissiveIntensity: 0.7 });
       const cane = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.4, 8), caneMat);
       cane.rotation.z = 0.35;
       const glow = new THREE.PointLight("#54ff83", 1.6, 7);
       group.add(cane, glow);
       scene.add(group);
-      pickups.push({ type: "health", mesh: group, active: true, x, y: 1.25, z: pos.z, radius: 0.95 });
+      pickups.push({ type: "health", mesh: group, active: true, x: posOnPath.x, y: 1.25, z: posOnPath.z, radius: 0.95 });
     });
 
     LEVEL.logs.forEach((log) => {
-      const x = worldX(log.localX, log.z);
+      const posOnPath = worldPosition(log.localX, log.z);
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(log.width, log.height, log.depth), makeMaterial("#6a3f22"));
-      mesh.position.set(x, log.height / 2, log.z);
+      mesh.position.set(posOnPath.x, log.height / 2, posOnPath.z);
       mesh.rotation.y = trackAngle(log.z);
       mesh.castShadow = true; mesh.receiveShadow = true;
       scene.add(mesh);
-      colliders.push({ type: "log", active: true, mesh, x, y: log.height / 2, z: log.z, w: log.width, h: log.height, d: log.depth });
+      colliders.push({ type: "log", active: true, mesh, x: posOnPath.x, y: log.height / 2, z: posOnPath.z, w: log.width, h: log.height, d: log.depth });
     });
 
     LEVEL.crates.forEach((crate) => {
-      const x = worldX(crate.localX, crate.z);
+      const posOnPath = worldPosition(crate.localX, crate.z);
       const group = new THREE.Group();
-      group.position.set(x, crate.height / 2, crate.z);
+      group.position.set(posOnPath.x, crate.height / 2, posOnPath.z);
       const box = new THREE.Mesh(new THREE.BoxGeometry(crate.width, crate.height, crate.depth), makeMaterial("#93612e"));
       const bandH = new THREE.Mesh(new THREE.BoxGeometry(crate.width + 0.08, 0.18, crate.depth + 0.08), makeMaterial("#e2b156"));
       const bandV = new THREE.Mesh(new THREE.BoxGeometry(0.2, crate.height + 0.08, crate.depth + 0.08), makeMaterial("#e2b156"));
       box.castShadow = true; box.receiveShadow = true;
       group.add(box, bandH, bandV);
       scene.add(group);
-      colliders.push({ type: "crate", active: true, mesh: group, x, y: crate.height / 2, z: crate.z, w: crate.width, h: crate.height, d: crate.depth });
+      colliders.push({ type: "crate", active: true, mesh: group, x: posOnPath.x, y: crate.height / 2, z: posOnPath.z, w: crate.width, h: crate.height, d: crate.depth });
     });
 
     LEVEL.branches.forEach((branch) => {
-      const x = worldX(branch.localX, branch.z);
+      const posOnPath = worldPosition(branch.localX, branch.z);
       const group = new THREE.Group();
-      group.position.set(x, branch.yOffset, branch.z);
+      group.position.set(posOnPath.x, branch.yOffset, posOnPath.z);
       group.rotation.y = trackAngle(branch.z);
       const limb = new THREE.Mesh(new THREE.BoxGeometry(branch.width, branch.height, branch.depth), makeMaterial("#452817"));
       const leaves = new THREE.Mesh(new THREE.BoxGeometry(branch.width + 0.4, 1.35, 1.8), makeMaterial("#17713d"));
@@ -298,7 +300,7 @@ export default function App() {
       limb.castShadow = true; leaves.castShadow = true;
       group.add(limb, leaves);
       scene.add(group);
-      colliders.push({ type: "branch", active: true, mesh: group, x, y: branch.yOffset, z: branch.z, w: branch.width, h: branch.height, d: branch.depth });
+      colliders.push({ type: "branch", active: true, mesh: group, x: posOnPath.x, y: branch.yOffset, z: posOnPath.z, w: branch.width, h: branch.height, d: branch.depth });
     });
 
     const gate = new THREE.Group();
@@ -308,8 +310,8 @@ export default function App() {
     const monkeyEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2200", emissive: "#ff2200", emissiveIntensity: 2.5 });
     LEVEL.enemies.forEach((en) => {
       const group = new THREE.Group();
-      const x = worldX(en.baseLocalX, en.z);
-      group.position.set(x, 0.9, en.z);
+      const posOnPath = worldPosition(en.baseLocalX, en.z);
+      group.position.set(posOnPath.x, 0.9, posOnPath.z);
       const bodyBox = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), monkeyBodyMat);
       bodyBox.castShadow = true;
       const eyeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), monkeyEyeMat);
@@ -326,24 +328,25 @@ export default function App() {
       }
       group.add(bodyBox, eyeGlow, eyeLight);
       scene.add(group);
-      enemies.push({ mesh: group, active: true, baseLocalX: en.baseLocalX, z: en.z, x, patrolRange: en.patrolRange, patrolSpeed: en.patrolSpeed, w: 1.5, h: 1.5, d: 1.5 });
+      enemies.push({ mesh: group, active: true, baseLocalX: en.baseLocalX, z: posOnPath.z, x: posOnPath.x, patrolRange: en.patrolRange, patrolSpeed: en.patrolSpeed, w: 1.5, h: 1.5, d: 1.5 });
     });
 
     // Golden pineapple collectibles — torus knot shape, orange glow
     const pineappleMat = new THREE.MeshStandardMaterial({ color: "#f5a623", emissive: "#f5a623", emissiveIntensity: 1.2, metalness: 0.8, roughness: 0.12 });
     LEVEL.collectibles.forEach((col) => {
-      const x = worldX(col.localX, col.z);
+      const posOnPath = worldPosition(col.localX, col.z);
       const group = new THREE.Group();
-      group.position.set(x, col.y, col.z);
+      group.position.set(posOnPath.x, col.y, posOnPath.z);
       const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.38, 0.12, 80, 14), pineappleMat);
       knot.castShadow = true;
       const glow = new THREE.PointLight("#f5a623", 2.2, 7);
       group.add(knot, glow);
       scene.add(group);
-      collectibleMeshes.push({ mesh: group, knot, active: true, x, y: col.y, z: col.z, radius: 0.9 });
+      collectibleMeshes.push({ mesh: group, knot, active: true, x: posOnPath.x, y: col.y, z: posOnPath.z, radius: 0.9 });
     });
 
     gate.position.set(trackCenter(LEVEL.gate.z), 0, LEVEL.gate.z);
+    gate.rotation.y = trackAngle(LEVEL.gate.z);
     const gateMat = makeMaterial("#d9b863", { roughness: 0.55, emissive: "#4d2f05", emissiveIntensity: 0.2 });
     const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1.2), gateMat);
     pillarL.position.set(-3.6, 3, 0);
@@ -938,9 +941,12 @@ export default function App() {
       }
       const shake = body.hurtTimer > 0 ? (Math.random() - 0.5) * 0.42 : 0;
       const chargeShake = charge > 0.82 ? (Math.random() - 0.5) * 0.07 : 0;
-      const desired = new THREE.Vector3(body.x * 0.48 + shake + chargeShake, body.y + CONFIG.cameraHeight + shake, body.z + CONFIG.cameraDistance + charge * 2);
+      const lookZ = body.z - 26 - charge * 8;
+      const lookAhead = worldPosition(body.localX * 0.35, lookZ);
+      const cameraX = lerp(body.x, lookAhead.x, 0.42);
+      const desired = new THREE.Vector3(cameraX + shake + chargeShake, body.y + CONFIG.cameraHeight + shake, body.z + CONFIG.cameraDistance + charge * 2);
       camera.position.lerp(desired, CONFIG.cameraLerp);
-      camera.lookAt(worldX(body.localX * 0.45, body.z - 18), body.y + 1.4, body.z - 18);
+      camera.lookAt(lookAhead.x, body.y + 1.4, lookAhead.z);
     }
 
     function sectionLabel() {

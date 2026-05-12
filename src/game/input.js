@@ -9,7 +9,7 @@
  */
 
 /**
- * Keyboard state consumed by gameplay systems. Arrow keys include virtual WASD/Shift mappings.
+ * Keyboard state consumed by gameplay systems. Arrow keys include virtual WASD mappings; Space is reserved for jump and hold-slide.
  *
  * @typedef {PressedKeys & { __pressed: PressedKeys }} GameKeys
  */
@@ -44,7 +44,7 @@ function syncVirtualControls(keys) {
   keys.ArrowDown = Boolean(pressed.ArrowDown || pressed.KeyS);
   keys.ArrowLeft = Boolean(pressed.ArrowLeft || pressed.KeyA);
   keys.ArrowRight = Boolean(pressed.ArrowRight || pressed.KeyD);
-  keys.Space = Boolean(pressed.Space || pressed.ShiftLeft || pressed.ShiftRight);
+  keys.Space = Boolean(pressed.Space);
   keys.KeyZ = Boolean(pressed.KeyZ);
   keys.KeyE = Boolean(pressed.KeyE);
   keys.KeyW = Boolean(pressed.KeyW);

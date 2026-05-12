@@ -58,10 +58,9 @@ export function tickPlayerTimers(body, dt) {
 }
 
 export function getPlayerInputIntent(body, keys, playing) {
-  const wantsSlide = playing && keys.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > MOVEMENT.slideStartMinSpeed && body.hurtTimer === 0;
-  const wantsReverse = playing && keys.ArrowDown && body.grounded && !wantsSlide;
+  const wantsReverse = playing && keys.ArrowDown && body.grounded;
   const wantsForward = playing && keys.ArrowUp && !wantsReverse;
-  return { wantsSlide, wantsReverse, wantsForward };
+  return { wantsReverse, wantsForward };
 }
 
 export function updatePlayerSpeed(body, dt, playing, intent) {

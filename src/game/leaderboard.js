@@ -1,13 +1,16 @@
 export const LEADERBOARD_LIMIT = 20;
 
-export function normalizeInitials(initials) {
-  const normalized = String(initials ?? "")
+const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard.v1";
+const DEFAULT_TABLE = "leaderboard";
+const MAX_ENTRIES = 10;
+const INITIALS_PATTERN = /^[A-Z0-9]{3}$/;
+
+export function normalizeInitials(value) {
+  return String(value ?? "")
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 3);
-
-  return normalized.padEnd(3, "-");
 }
 
 function normalizeDate(date) {
@@ -16,12 +19,21 @@ function normalizeDate(date) {
   return parsed.toISOString();
 }
 
+function toSafeInteger(value, fallback = 0) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(0, Math.floor(number));
+}
+
 export function normalizeLeaderboardEntry(entry) {
   return {
     initials: normalizeInitials(entry?.initials),
-    score: Math.max(0, Math.floor(Number(entry?.score) || 0)),
-    elapsedMs: Math.max(0, Math.floor(Number(entry?.elapsedMs) || 0)),
-    date: normalizeDate(entry?.date),
+    score: toSafeInteger(entry?.score),
+    elapsedMs: toSafeInteger(entry?.elapsedMs),
+    fruit: Number.isFinite(Number(entry?.fruit)) ? toSafeInteger(entry?.fruit) : undefined,
+    crates: Number.isFinite(Number(entry?.crates)) ? toSafeInteger(entry?.crates) : undefined,
+    lives: Number.isFinite(Number(entry?.lives)) ? toSafeInteger(entry?.lives) : undefined,
+    date: normalizeDate(entry?.date ?? entry?.createdAt),
   };
 }
 
@@ -34,8 +46,6 @@ export function normalizeLeaderboardEntry(entry) {
 export function compareLeaderboardEntries(a, b) {
   if (b.score !== a.score) return b.score - a.score;
   if (a.elapsedMs !== b.elapsedMs) return a.elapsedMs - b.elapsedMs;
-
-  // Newer scores win the final documented tie-breaker; exact date ties keep input order.
   return new Date(b.date).getTime() - new Date(a.date).getTime();
 }
 
@@ -49,10 +59,7 @@ export function rankLeaderboardEntries(entries, limit = LEADERBOARD_LIMIT) {
 
 export function addLeaderboardEntry(entries, entry, limit = LEADERBOARD_LIMIT) {
   return rankLeaderboardEntries([...entries, entry], limit);
-const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard.v1";
-const DEFAULT_TABLE = "leaderboard";
-const MAX_ENTRIES = 10;
-const INITIALS_PATTERN = /^[A-Z0-9]{3}$/;
+}
 
 function getSupabaseConfig() {
   const env = import.meta.env ?? {};
@@ -73,19 +80,6 @@ function sortEntries(entries) {
     .slice(0, MAX_ENTRIES);
 }
 
-function toSafeInteger(value, fallback = 0) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.max(0, Math.floor(number));
-}
-
-export function normalizeInitials(value) {
-  return String(value ?? "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 3);
-}
-
 export function validateInitials(value) {
   return INITIALS_PATTERN.test(String(value ?? ""));
 }
@@ -98,7 +92,7 @@ export function sanitizeLeaderboardEntry(entry) {
     fruit: toSafeInteger(entry?.fruit),
     crates: toSafeInteger(entry?.crates),
     lives: toSafeInteger(entry?.lives),
-    createdAt: entry?.createdAt || new Date().toISOString(),
+    createdAt: normalizeDate(entry?.createdAt ?? entry?.date ?? new Date().toISOString()),
   };
 }
 
@@ -106,9 +100,6 @@ export function validateLeaderboardEntry(entry) {
   const safeEntry = sanitizeLeaderboardEntry(entry);
   if (!validateInitials(safeEntry.initials)) {
     return { ok: false, message: "Enter exactly 3 uppercase letters or numbers. No names, spaces, or symbols." };
-  }
-  if (!Number.isFinite(Date.parse(safeEntry.createdAt))) {
-    return { ok: false, message: "Leaderboard entry has an invalid date." };
   }
   return { ok: true, entry: safeEntry };
 }

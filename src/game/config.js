@@ -27,9 +27,11 @@ export const MOVEMENT = {
 
 export const SCORING = {
   fruitPoints: 5,
+  cratePoints: 10,
   monkeyPoints: 20,
   pineapplePoints: 50,
   comboWindowSeconds: 3.0,
+  crateComboWindowSeconds: 3.5,
   maxMultiplier: 5,
   comboPerMultiplier: 5,
   fruitLifeThreshold: 100,

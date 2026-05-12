@@ -11,6 +11,19 @@ import { NOTES, noteToFrequency } from "./game/audio.js";
 import { createTitleThemePlayer } from "./game/audio/titleTheme.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
+import {
+  createPlayerBody,
+  getPlayerInputIntent,
+  selectPlayerStateLabel,
+  tickPlayerTimers,
+  triggerPlayerSmash,
+  triggerPlayerSpin,
+  updateJumpAndSlideInput,
+  updatePlayerAir,
+  updatePlayerSpeed,
+  updatePlayerSteering,
+  startPlayerSlide,
+} from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
 import { runSelfTests } from "./game/selfTests.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
@@ -573,17 +586,7 @@ export default function App() {
     shadow.position.y = 0.025;
     scene.add(shadow);
 
-    const body = {
-      localX: 0, x: trackCenter(CONFIG.startZ), y: CONFIG.playerSize / 2, z: CONFIG.startZ,
-      speed: 0, yVelocity: 0, coyoteTimer: CONFIG.coyoteTime, jumpBufferTimer: 0,
-      grounded: true, jumpHeld: false, doubleUsed: false,
-      spaceHeldTimer: 0, spaceActionResolved: false, bufferedSlide: false,
-      slideTimer: 0, hurtTimer: 0, smashTimer: 0, smashActionTimer: 0,
-      spinTimer: 0,
-      yaw: 0, health: 100, lives: 5, fruit: 0, fruitLifeCounter: 0, crates: 0,
-      score: 0, multiplier: 1, multiplierCombo: 0, multiplierTimer: 0,
-      state: "Ready", completed: false, lastPrompt: "",
-    };
+    const body = createPlayerBody();
 
     function activateParticle(x, y, z, colour, scale = 0.28, life = 1, velocity = {}) {
       let particle = particlePool.find((entry) => !entry.active);
@@ -885,144 +888,59 @@ export default function App() {
       const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
       const wasGrounded = body.grounded;
 
-      body.hurtTimer = Math.max(0, body.hurtTimer - dt);
-      body.smashTimer = Math.max(0, body.smashTimer - dt);
-      body.smashActionTimer = Math.max(0, body.smashActionTimer - dt);
-      body.slideTimer = Math.max(0, body.slideTimer - dt);
-      body.jumpBufferTimer = Math.max(0, body.jumpBufferTimer - dt);
-      body.spinTimer = Math.max(0, body.spinTimer - dt);
-      body.multiplierTimer = Math.max(0, body.multiplierTimer - dt);
-      if (body.multiplierTimer <= 0 && body.multiplier > 1) {
-        body.multiplier = 1;
-        body.multiplierCombo = 0;
-      }
-      if (body.grounded) body.coyoteTimer = CONFIG.coyoteTime;
-      else body.coyoteTimer = Math.max(0, body.coyoteTimer - dt);
+      tickPlayerTimers(body, dt);
 
-      const wantsSlide = playing && k.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > 2 && body.hurtTimer === 0;
-      const wantsReverse = playing && k.ArrowDown && body.grounded && !wantsSlide;
-      const wantsForward = playing && k.ArrowUp && !wantsReverse;
-      if (playing && (body.hurtTimer === 0 || wantsReverse)) {
-        if (wantsForward) {
-          body.speed = Math.min(CONFIG.maxSpeed, body.speed + CONFIG.acceleration * dt);
-        } else if (wantsReverse) {
-          body.speed = Math.max(-CONFIG.reverseMaxSpeed, body.speed - CONFIG.reverseAcceleration * dt);
-        } else {
-          body.speed *= Math.exp(-CONFIG.friction * dt);
-          const idleStep = CONFIG.idleDeceleration * dt;
-          body.speed = Math.abs(body.speed) <= idleStep ? 0 : body.speed - Math.sign(body.speed) * idleStep;
-        }
-        if (Math.abs(body.speed) < CONFIG.minSpeed) body.speed = 0;
-      } else if (playing) {
-        body.speed *= Math.exp(-CONFIG.friction * dt);
-        if (Math.abs(body.speed) < CONFIG.minSpeed) body.speed = 0;
-      } else {
-        body.speed = 0;
-      }
+      const intent = getPlayerInputIntent(body, k, playing);
+      updatePlayerSpeed(body, dt, playing, intent);
 
-      let nextLocalX = body.localX;
       let ny = body.y;
       let nz = body.z - body.speed * dt;
+      let nextLocalX = updatePlayerSteering(body, k, dt, playing, nz);
+      let nx = worldX(nextLocalX, nz);
 
-      if (playing && body.hurtTimer === 0) {
-        const steer = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
-        nextLocalX = clamp(nextLocalX + steer * CONFIG.steerSpeed * dt, -CONFIG.corridorHalfWidth, CONFIG.corridorHalfWidth);
-        body.yaw = lerp(body.yaw, steer * -0.22 + trackAngle(nz), 1 - Math.exp(-CONFIG.turnDamping * dt));
+      function playJumpEvent(event) {
+        if (event === "ground") {
+          burst(body.x, 0.2, body.z, "#d6c399", 5, 0.2);
+          playTone("jump");
+        } else if (event === "double") {
+          burst(body.x, body.y + 0.6, body.z, "#ff89d2", 8, 0.2);
+          popText("BIG Bounce!", body.x, body.y + 2.8, body.z, "#ffc3ed");
+          playTone("double");
+        }
       }
 
-      let nx = worldX(nextLocalX, nz);
-      const spaceDown = k.Space;
-      const spaceJustReleased = !spaceDown && body.jumpHeld;
-
-      function startSlide() {
-        if (!playing || body.slideTimer > 0 || body.speed <= 2) return;
-        body.slideTimer = CONFIG.slideDuration;
-        body.bufferedSlide = false;
+      function playSlideEvent() {
         burst(body.x, 0.2, body.z, "#d6c399", 6, 0.2);
       }
 
-      function doGroundJump() {
-        body.yVelocity = CONFIG.jumpVelocity;
-        body.grounded = false;
-        body.coyoteTimer = 0;
-        body.jumpBufferTimer = 0;
-        body.doubleUsed = false;
-        burst(body.x, 0.2, body.z, "#d6c399", 5, 0.2);
-        playTone("jump");
-      }
-
-      function doDoubleJump() {
-        body.yVelocity = CONFIG.doubleJumpVelocity;
-        body.doubleUsed = true;
-        body.jumpBufferTimer = 0;
-        burst(body.x, body.y + 0.6, body.z, "#ff89d2", 8, 0.2);
-        popText("BIG Bounce!", body.x, body.y + 2.8, body.z, "#ffc3ed");
-        playTone("double");
-      }
-
-      function triggerJumpOrDoubleJump() {
-        if (!playing || body.slideTimer > 0) return;
-        if (body.grounded || body.coyoteTimer > 0) doGroundJump();
-        else if (!body.doubleUsed) doDoubleJump();
-        else body.jumpBufferTimer = CONFIG.jumpBufferTime;
-      }
-
-      if (k.KeyZ && body.smashActionTimer <= 0 && playing) {
-        body.smashActionTimer = 0.18;
-        body.smashTimer = Math.max(body.smashTimer, 0.1);
+      if (k.KeyZ && triggerPlayerSmash(body, playing)) {
         trunk.rotation.x = -0.85;
       }
 
       // Spin attack — E key, 0.55s duration, defeats patrol monkeys
-      if (k.KeyE && body.spinTimer <= 0 && playing) {
-        body.spinTimer = 0.55;
+      if (k.KeyE && triggerPlayerSpin(body, playing)) {
         burst(body.x, body.y + 0.8, body.z, "#ff89d2", 12, 0.22);
         burst(body.x, body.y + 0.8, body.z, "#ffd34a", 6, 0.18);
         popText("SPIN ATTACK!", body.x, body.y + 2.8, body.z, "#ffcf66");
         playTone("double");
       }
 
-      if (spaceDown && !body.jumpHeld) {
-        body.spaceHeldTimer = 0;
-        body.spaceActionResolved = false;
-        body.bufferedSlide = false;
+      for (const event of updateJumpAndSlideInput(body, k, dt, playing)) {
+        if (event === "slide") playSlideEvent();
+        else playJumpEvent(event);
       }
-      if (spaceDown && !body.spaceActionResolved && playing) {
-        body.spaceHeldTimer += dt;
-        if (body.spaceHeldTimer >= CONFIG.slideHoldThreshold) {
-          body.spaceActionResolved = true;
-          if (body.grounded) startSlide();
-          else body.bufferedSlide = true;
-        }
-      }
-      if (spaceJustReleased && !body.spaceActionResolved) {
-        triggerJumpOrDoubleJump();
-        body.spaceActionResolved = true;
-      }
+      if (intent.wantsSlide && startPlayerSlide(body)) playSlideEvent();
 
-      body.jumpHeld = spaceDown;
-      if (playing && body.bufferedSlide && body.grounded) startSlide();
-      if (wantsSlide) startSlide();
-
-      if (!body.grounded) {
-        const gravityMultiplier = body.yVelocity < 0 ? CONFIG.fallGravityMultiplier : 1;
-        body.yVelocity += CONFIG.gravity * gravityMultiplier * dt;
-        ny += body.yVelocity * dt;
-        const groundY = CONFIG.playerSize / 2;
-        if (ny <= groundY) {
-          ny = groundY;
-          body.yVelocity = 0;
-          body.grounded = true;
-          body.coyoteTimer = CONFIG.coyoteTime;
-          body.doubleUsed = false;
-          burst(nx, 0.18, nz, "#d6c399", 8, 0.22);
-          playTone("land");
-          if (body.jumpBufferTimer > 0 && body.slideTimer <= 0) {
-            body.x = nx; body.z = nz;
-            doGroundJump();
-            ny = body.y;
-          }
-        }
+      const airUpdate = updatePlayerAir(body, ny, dt);
+      ny = airUpdate.y;
+      if (airUpdate.landed) {
+        burst(nx, 0.18, nz, "#d6c399", 8, 0.22);
+        playTone("land");
+      }
+      if (airUpdate.bufferedJump) {
+        body.x = nx; body.z = nz;
+        playJumpEvent("ground");
+        ny = body.y;
       }
 
       const pBox = setPlayerBox(playerAabb, nx, ny, nz);
@@ -1133,16 +1051,7 @@ export default function App() {
       }
       if (wasGrounded && !body.grounded && body.yVelocity <= 0) body.coyoteTimer = CONFIG.coyoteTime;
 
-      if (body.completed) body.state = "Jungle Gate";
-      else if (body.lives <= 0) body.state = "Herd Resting";
-      else if (body.hurtTimer > 0) body.state = "Jungle Bump";
-      else if (body.spinTimer > 0) body.state = "Spin Attack";
-      else if (body.smashTimer > 0) body.state = "Trunk-Smash";
-      else if (body.slideTimer > 0) body.state = "Belly-Slide";
-      else if (!body.grounded) body.state = body.doubleUsed ? "BIG Bounce" : "Leap";
-      else if (charge > 0.82) body.state = "Mighty Charge";
-      else if (body.speed > 0.5) body.state = "Charging";
-      else body.state = "Ready";
+      body.state = selectPlayerStateLabel(body, charge);
 
       updateMusicAndStampede(charge);
     }

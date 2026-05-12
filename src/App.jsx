@@ -104,14 +104,13 @@ export default function App() {
   const musicRef = useRef({ enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 });
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
-  const finalStatsRef = useRef({ fruit: 0, crates: 0, score: 0, elapsedMs: 0 });
 
   const [started, setStarted] = useState(false);
   const [complete, setComplete] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
   const [testSummary, setTestSummary] = useState("Self-tests pending");
-  const [finalStats, setFinalStats] = useState({ fruit: 0, crates: 0, score: 0, elapsedMs: 0 });
+  const [finalResults, setFinalResults] = useState(null);
 
   const ui = {
     health: useRef(null),
@@ -678,14 +677,13 @@ export default function App() {
     function completeLevel(popZ = body.z) {
       if (completeRef.current) return;
       const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
-      const stats = { fruit: body.fruit, crates: body.crates, score: body.score, elapsedMs };
+      const results = { fruit: body.fruit, crates: body.crates, score: body.score, lives: body.lives, elapsedMs };
       body.completed = true;
       completeRef.current = true;
-      finalStatsRef.current = stats;
       body.speed = 0;
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
-      setFinalStats(stats);
+      setFinalResults(results);
       setComplete(true);
     }
 
@@ -1321,12 +1319,12 @@ export default function App() {
       }
 
       // Score tally
-      if (ui.scoreTally.current) ui.scoreTally.current.textContent = completeRef.current ? finalStatsRef.current.score : body.score;
+      if (ui.scoreTally.current) ui.scoreTally.current.textContent = body.score;
 
       drawSpeedometer(charge);
 
       if (ui.timerDisplay.current && gameStartTimeRef.current && startedRef.current && !gameOverRef.current) {
-        const elapsedMs = completeRef.current ? finalStatsRef.current.elapsedMs : performance.now() - gameStartTimeRef.current;
+        const elapsedMs = performance.now() - gameStartTimeRef.current;
         const elapsed = Math.floor(elapsedMs / 1000);
         const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
         const ss = String(elapsed % 60).padStart(2, "0");
@@ -1337,8 +1335,8 @@ export default function App() {
       if (ui.distance.current) ui.distance.current.textContent = `${Math.abs(Math.min(0, body.z)).toFixed(0)}`;
       if (ui.fruit.current) ui.fruit.current.textContent = `${body.fruitLifeCounter}/100`;
       if (ui.fruitLife.current) ui.fruitLife.current.style.width = `${body.fruitLifeCounter}%`;
-      if (ui.fruitTally.current) ui.fruitTally.current.textContent = completeRef.current ? finalStatsRef.current.fruit : body.fruit;
-      if (ui.cratesTally.current) ui.cratesTally.current.textContent = completeRef.current ? finalStatsRef.current.crates : body.crates;
+      if (ui.fruitTally.current) ui.fruitTally.current.textContent = body.fruit;
+      if (ui.cratesTally.current) ui.cratesTally.current.textContent = body.crates;
 
       const prompt = promptText();
       if (ui.prompt.current && prompt !== body.lastPrompt) {
@@ -1420,8 +1418,7 @@ export default function App() {
     completeRef.current = false;
     gameOverRef.current = false;
     gameStartTimeRef.current = performance.now();
-    finalStatsRef.current = { fruit: 0, crates: 0, score: 0, elapsedMs: 0 };
-    setFinalStats(finalStatsRef.current);
+    setFinalResults(null);
     setStarted(true);
     setComplete(false);
     setGameOver(false);
@@ -1603,10 +1600,11 @@ export default function App() {
               The herd made it through. The jungle is yours.
             </p>
             <div className="mt-5 flex justify-center gap-6 text-sm font-black text-amber-100">
-              <span>🍋 <span ref={ui.fruitTally}>{finalStats.fruit}</span></span>
-              <span>📦 <span ref={ui.cratesTally}>{finalStats.crates}</span></span>
-              <span>⭐ <span ref={ui.scoreTally}>{finalStats.score}</span></span>
-              <span>⏱ <span ref={ui.timerDisplay}>{formatElapsed(finalStats.elapsedMs)}</span></span>
+              <span>🍋 <span>{finalResults?.fruit ?? 0}</span></span>
+              <span>📦 <span>{finalResults?.crates ?? 0}</span></span>
+              <span>⭐ <span>{finalResults?.score ?? 0}</span></span>
+              <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
+              <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             <button onClick={() => window.location.reload()}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">

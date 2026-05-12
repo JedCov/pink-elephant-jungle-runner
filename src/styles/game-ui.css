@@ -434,6 +434,45 @@ button {
   z-index: 7;
 }
 
+.title-primary-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.title-primary-control {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.055));
+  border: 1px solid rgba(253, 230, 138, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 20px rgba(4, 10, 5, 0.18);
+}
+
+.title-control-key {
+  width: 6rem;
+}
+
+.title-advanced-note {
+  max-width: 26rem;
+  background: rgba(6, 20, 12, 0.46);
+  border: 1px solid rgba(167, 243, 208, 0.12);
+}
+
+@media (max-width: 430px), (max-height: 720px) {
+  .title-primary-controls {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .title-primary-control {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  .title-advanced-note {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+}
+
 .app-fallback-screen {
   min-height: 100vh;
   width: 100vw;
@@ -486,4 +525,66 @@ button {
 .app-fallback-icon {
   font-size: 3rem;
   line-height: 1;
+}
+
+.leaderboard-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 1.75rem 3rem 1fr 3.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.75rem;
+  background: rgba(0,0,0,0.18);
+  padding: 0.45rem 0.55rem;
+  color: rgba(255,255,255,0.76);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.leaderboard-rank {
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+}
+
+.leaderboard-initials {
+  color: #fff7ed;
+  letter-spacing: 0.18em;
+}
+
+.leaderboard-score,
+.leaderboard-time {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.leaderboard-time {
+  color: rgba(255,255,255,0.52);
+}
+
+.leaderboard-input {
+  width: 4.75rem;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 9999px;
+  background: rgba(0,0,0,0.28);
+  color: #fff7ed;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  padding: 0.55rem 0.7rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.leaderboard-input:disabled,
+button:disabled {
+  cursor: not-allowed;
 }

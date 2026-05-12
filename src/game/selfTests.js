@@ -18,6 +18,7 @@ import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
 import { CONFIG, MOVEMENT } from "./config.js";
 import { LEVEL } from "./level.js";
+import { LEVEL_PROMPTS, promptForZ } from "./prompts.js";
 import {
   createPlayerBody,
   getPlayerInputIntent,
@@ -216,6 +217,18 @@ export function runSelfTests() {
       && !handleGateCollision({ playing: true, complete: true, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
       && !handleGateCollision({ playing: true, complete: false, nextZ: LEVEL.finish.z + 1, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ }),
   );
+
+  const promptCueAppearsBefore = (cue, targetZ) => {
+    const prompt = LEVEL_PROMPTS.find((candidate) => candidate.cues.includes(cue) && candidate.startZ > targetZ);
+    return Boolean(prompt) && promptForZ(prompt.startZ - 0.1) === prompt.text;
+  };
+  const firstFruit = LEVEL.fruits[0];
+  assert("fruit prompt appears before the first fruit", Boolean(firstFruit) && promptCueAppearsBefore("fruit", firstFruit.z));
+  assert("log prompt appears before the first log", Boolean(LEVEL.logs[0]) && promptCueAppearsBefore("log", LEVEL.logs[0].z));
+  assert("branch prompt appears before the first branch", Boolean(LEVEL.branches[0]) && promptCueAppearsBefore("branch", LEVEL.branches[0].z));
+  assert("crate prompt appears before the first crate", Boolean(LEVEL.crates[0]) && promptCueAppearsBefore("crate", LEVEL.crates[0].z));
+  assert("river prompt appears before the first river", Boolean(LEVEL.rivers[0]) && promptCueAppearsBefore("river", LEVEL.rivers[0].z));
+  assert("finish prompt appears before the finish line", promptCueAppearsBefore("finish", LEVEL.finish.z));
 
   assert("title theme contains all 32 bars", TITLE_THEME.sequence.length === TITLE_THEME.stepsPerBar * 32);
   assert("title theme hook starts at bar 21", TITLE_THEME.sequence[20 * TITLE_THEME.stepsPerBar].bar === 21);

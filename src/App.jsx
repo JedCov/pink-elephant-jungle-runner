@@ -19,6 +19,7 @@ import {
 } from "./game/collisions.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
+import { promptForZ } from "./game/prompts.js";
 import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
@@ -1801,33 +1802,10 @@ export default function App() {
     }
 
     function promptText() {
-      const d = Math.abs(Math.min(0, body.z));
-      const loop = Math.floor(d / 245);
-      const local = d % 245;
       if (!startedRef.current) return "Press Begin the Trail to wake the bright jungle.";
       if (completeRef.current) return "The Jungle Gate is open. Brilliant trumpet work!";
       if (gameOverRef.current) return "The herd needs a breather. Try the trail again from here.";
-      if (loop === 0) {
-        if (local < 14) return "Hold ↑ to build Elephant Charge.";
-        if (local < 42) return "Follow the golden fruit and feel the big pink rhythm.";
-        if (local < 64) return "Monkey patrol ahead — tap E for a Spin Attack.";
-        if (local < 96) return "Use ← → to sway through the jungle trail.";
-        if (local < 116) return "Tap Space to leap the log. Watch the shadow, not the ears.";
-        if (local < 142) return "Tap Space again in the air for a BIG Bounce.";
-        if (local < 162) return "Low vines ahead — hold Space to Belly-Slide.";
-        if (local < 192) return "Wooden crate ahead — press Z for a Trunk-Smash.";
-        if (local < 224) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
-        return "Sugar cane restores energy after a jungle bump.";
-      }
-      if (local < 42) return `${sectionLabel()}: build a braver Elephant Charge.`;
-      if (local < 64) return "Monkey patrol returning — tap E to Spin Attack.";
-      if (local < 96) return "Sway through the fruit trail. Big feet, gentle steering.";
-      if (local < 116) return "Leap the log. Keep the shadow clear.";
-      if (local < 142) return "Reach the high fruit with a BIG Bounce.";
-      if (local < 162) return "Belly-Slide low before the branch.";
-      if (local < 192) return "Trunk-Smash the crate with Z as it enters reach.";
-      if (local < 224) return "Crocodile creek again. Stop, read, then stampede.";
-      return loop < 3 ? "Sugar cane ahead. Gather your elephant energy." : "Final stretch. Trumpet proudly towards the Jungle Gate!";
+      return promptForZ(body.z);
     }
 
     function drawSpeedometer(charge) {

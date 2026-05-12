@@ -2,6 +2,8 @@ import { aabb, clamp, lerp } from "./math.js";
 import { createKeys, setKeyState } from "./input.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
+import { CONFIG } from "./config.js";
+import { LEVEL } from "./level.js";
 
 export function runSelfTests() {
   const results = [];
@@ -44,6 +46,9 @@ export function runSelfTests() {
 
   assert("track has visible left-right bends", maxCenter - minCenter > 12);
   assert("track bends stay readable", maxReadableAngle < 0.35);
+
+  assert("level finish plane matches gate", LEVEL.finish.z === LEVEL.gate.z && LEVEL.finish.z === CONFIG.gateZ);
+  assert("level finish failsafe is beyond the gate", LEVEL.finish.failSafeZ < LEVEL.finish.z);
 
   assert("title theme contains all 32 bars", TITLE_THEME.sequence.length === TITLE_THEME.stepsPerBar * 32);
   assert("title theme hook starts at bar 21", TITLE_THEME.sequence[20 * TITLE_THEME.stepsPerBar].bar === 21);

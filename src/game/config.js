@@ -4,7 +4,7 @@ export const CONFIG = {
   corridorHalfWidth: 5.6,
   startZ: 6,
   gateZ: -760,
-  finishTriggerDepth: 24,
+  finishTriggerDepth: 10,
   endOfCourseZ: -782,
   playerSize: 2.05,
   hitboxScale: 0.66,

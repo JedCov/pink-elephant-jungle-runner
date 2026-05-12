@@ -3,6 +3,7 @@ import * as THREE from "three";
 
 import { Icon } from "./components/Icon.jsx";
 import { CONFIG } from "./game/config.js";
+import { branchHitsPlayer, obstacleBox, playerBox as makePlayerBox } from "./game/collision.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, lerp } from "./game/math.js";
@@ -618,11 +619,7 @@ export default function App() {
     pickupPopPresets.forEach(([text, colour, count]) => prewarmPopText(text, colour, count));
 
     function playerBox(nx, ny, nz) {
-      const sliding = body.slideTimer > 0;
-      const hw = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-      const hh = sliding ? CONFIG.playerSize * 0.25 : (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-      const hd = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-      return { minX: nx - hw, maxX: nx + hw, minY: ny - hh, maxY: ny + hh, minZ: nz - hd, maxZ: nz + hd };
+      return makePlayerBox(nx, ny, nz, body.slideTimer > 0);
     }
 
     function zOverlapDepth(a, b) {
@@ -649,14 +646,6 @@ export default function App() {
     function isRetreatingFromObstacle(currentBox, nextBox, obstacleBox) {
       if (!aabb(currentBox, obstacleBox)) return false;
       return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - 0.001;
-    }
-
-    function obstacleBox(obs) {
-      return {
-        minX: obs.x - obs.w / 2, maxX: obs.x + obs.w / 2,
-        minY: obs.y - obs.h / 2, maxY: obs.y + obs.h / 2,
-        minZ: obs.z - obs.d / 2, maxZ: obs.z + obs.d / 2,
-      };
     }
 
     function loseLife() {
@@ -967,7 +956,7 @@ export default function App() {
         if (obs.type === "log") {
           if (collisionBox.minY < oBox.maxY - 0.18 && !canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "branch") {
-          if (pBox.maxY > oBox.minY + 0.2 && !canRetreat) { hurt(false); blocked = true; }
+          if (branchHitsPlayer(collisionBox, oBox) && !canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "croc") {
           if (!canRetreat) { hurt(true); blocked = true; }
         } else if (obs.type === "crate") {

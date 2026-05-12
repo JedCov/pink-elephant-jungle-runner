@@ -49,6 +49,24 @@ npm run preview
 
 This serves the already-built `dist/` folder so you can sanity-check the same static assets GitHub Pages will publish.
 
+
+## Shared Leaderboard Backend
+
+The game uses `src/game/leaderboard.js` for leaderboard access. It stores classroom-safe fields only (`initials`, `score`, `elapsedMs`, `fruit`, `crates`, `lives`, `createdAt`) and falls back to `localStorage` when the hosted backend is not configured or temporarily unavailable.
+
+For a shared leaderboard across multiple student devices, create a Supabase project and run `supabase/leaderboard.sql` in the Supabase SQL editor. The SQL enables row-level security, allows anonymous select/insert, and enforces the server-side initials rule with a database check: exactly 3 uppercase alphanumeric characters.
+
+Set these Vite environment variables before building or deploying:
+
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
+# Optional; defaults to leaderboard
+VITE_SUPABASE_LEADERBOARD_TABLE=leaderboard
+```
+
+Do not collect full names. The UI and database reject empty or malformed initials, and the client submits only the safe leaderboard fields.
+
 ## Deployment
 
 Deployment is handled by `.github/workflows/deploy-pages.yml`.

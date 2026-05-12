@@ -175,14 +175,15 @@ export function buildLevel() {
       sectionMetadata(LEVEL_SECTIONS.HIGH_FRUIT, difficulty),
     );
 
-    // Slide branch — low fruit line telegraphs ducking before the branch.
+    // Slide branch — low fruit line telegraphs the hold window before the branch,
+    // leaving enough travel time for Space to resolve into Belly-Slide at speed.
     addFruitLine(
       fruits,
-      o - 158,
-      o - 174,
+      o - (plan.branch.z - 22),
+      o - (plan.branch.z - 4),
       plan.slideCount,
-      () => plan.slideX,
-      () => 0.88,
+      () => plan.branch.localX,
+      () => 0.82,
       sectionMetadata(
         LEVEL_SECTIONS.SLIDE_BRANCH,
         difficulty,

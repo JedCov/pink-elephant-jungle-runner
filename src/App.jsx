@@ -1326,91 +1326,132 @@ export default function App() {
       ctx.fillText("CHARGE", cx, cy + r * 0.5);
     }
 
-    function updateDom() {
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+    const hudRefresh = {
+      lowIntervalMs: 1000 / 12,
+      nextLowAt: 0,
+      lastSpeedometerCharge: null,
+      values: new Map(),
+    };
 
-      if (ui.health.current) {
-        ui.health.current.style.width = `${body.health}%`;
-        const hue = Math.round((body.health / 100) * 120);
-        ui.health.current.style.background = `linear-gradient(90deg, hsl(${hue},90%,52%), hsl(${Math.max(0, hue - 20)},95%,42%))`;
-      }
-      if (ui.lives.current) ui.lives.current.textContent = "🐘".repeat(Math.max(0, body.lives));
-      if (ui.charge.current) {
-        ui.charge.current.style.width = `${charge * 100}%`;
-        ui.charge.current.style.filter = charge > 0.82 ? "drop-shadow(0 0 8px #ff89d2)" : "none";
-      }
-      if (ui.chargeText.current) ui.chargeText.current.textContent = `${Math.round(charge * 100)}%`;
+    function setTextIfChanged(ref, key, value) {
+      const node = ref.current;
+      if (!node) return;
+      const text = String(value);
+      if (hudRefresh.values.get(key) === text) return;
+      hudRefresh.values.set(key, text);
+      node.textContent = text;
+    }
 
+    function setStyleIfChanged(ref, key, property, value) {
+      const node = ref.current;
+      if (!node) return;
+      if (hudRefresh.values.get(key) === value) return;
+      hudRefresh.values.set(key, value);
+      node.style[property] = value;
+    }
+
+    function updateHighFrequencyHud(charge) {
+      const healthWidth = `${body.health}%`;
+      setStyleIfChanged(ui.health, "healthWidth", "width", healthWidth);
+      const hue = Math.round((body.health / 100) * 120);
+      const healthBackground = `linear-gradient(90deg, hsl(${hue},90%,52%), hsl(${Math.max(0, hue - 20)},95%,42%))`;
+      setStyleIfChanged(ui.health, "healthBackground", "background", healthBackground);
+
+      // Keep the visual charge bar on the animation-frame path so acceleration feels immediate.
+      const chargeWidth = `${(charge * 100).toFixed(1)}%`;
+      setStyleIfChanged(ui.charge, "chargeWidth", "width", chargeWidth);
+      const chargeFilter = charge > 0.82 ? "drop-shadow(0 0 8px #ff89d2)" : "none";
+      setStyleIfChanged(ui.charge, "chargeFilter", "filter", chargeFilter);
+
+      const fruitLifeWidth = `${body.fruitLifeCounter}%`;
+      setStyleIfChanged(ui.fruitLife, "fruitLifeWidth", "width", fruitLifeWidth);
+    }
+
+    function updateLowFrequencyHud(now, charge) {
       const stateColours = {
         "Mighty Charge": "#ff4fb3", Charging: "#ffd34a", Leap: "#7dd8ff",
         "BIG Bounce": "#c4b5fd", "Belly-Slide": "#6ee7b7", "Trunk-Smash": "#fb923c",
         "Spin Attack": "#ffcf66", "Jungle Bump": "#f87171", "Herd Resting": "#94a3b8",
         "Jungle Gate": "#ffd34a", Ready: "rgba(255,255,255,0.45)",
       };
-      if (ui.stateBadge.current) {
-        ui.stateBadge.current.textContent = body.state;
-        ui.stateBadge.current.style.color = stateColours[body.state] || "#fff";
-        ui.stateBadge.current.style.borderColor = `${stateColours[body.state] || "#fff"}55`;
+
+      setTextIfChanged(ui.lives, "lives", "🐘".repeat(Math.max(0, body.lives)));
+      setTextIfChanged(ui.chargeText, "chargeText", `${Math.round(charge * 100)}%`);
+
+      const stateColour = stateColours[body.state] || "#fff";
+      setTextIfChanged(ui.stateBadge, "stateBadge", body.state);
+      setStyleIfChanged(ui.stateBadge, "stateBadgeColor", "color", stateColour);
+      setStyleIfChanged(ui.stateBadge, "stateBadgeBorder", "borderColor", `${stateColour}55`);
+
+      const showMultiplier = body.multiplier > 1;
+      setTextIfChanged(ui.multiplierBadge, "multiplierBadge", `${body.multiplier}x COMBO`);
+      setStyleIfChanged(ui.multiplierBadge, "multiplierOpacity", "opacity", showMultiplier ? "1" : "0");
+      setStyleIfChanged(ui.multiplierBadge, "multiplierTransform", "transform", showMultiplier ? "scale(1)" : "scale(0.85)");
+      setStyleIfChanged(
+        ui.multiplierBadge,
+        "multiplierColor",
+        "color",
+        body.multiplier >= 4 ? "#ff4fb3" : body.multiplier >= 3 ? "#fb923c" : "#ffd34a",
+      );
+
+      const momentumText = charge > 0.85
+        ? "STAMPEDE — HOLD YOUR GROUND"
+        : charge > 0.5
+        ? "BUILDING MOMENTUM"
+        : charge > 0.1
+        ? "WARMING UP"
+        : "READY TO CHARGE";
+      setTextIfChanged(ui.momentumLabel, "momentumLabel", momentumText);
+      setStyleIfChanged(ui.momentumLabel, "momentumColor", "color", charge > 0.85 ? "#ff89d2" : charge > 0.5 ? "#ffd34a" : "rgba(255,255,255,0.4)");
+
+      setTextIfChanged(ui.scoreTally, "scoreTally", body.score);
+
+      const roundedCharge = Math.round(charge * 100);
+      const wasSpeedometerGlowing = hudRefresh.lastSpeedometerCharge !== null && hudRefresh.lastSpeedometerCharge > 0.82;
+      const isSpeedometerGlowing = charge > 0.82;
+      const crossedChargeGlow = wasSpeedometerGlowing !== isSpeedometerGlowing;
+      if (hudRefresh.lastSpeedometerCharge === null || Math.abs(charge - hudRefresh.lastSpeedometerCharge) >= 0.01 || crossedChargeGlow) {
+        drawSpeedometer(charge);
+        hudRefresh.lastSpeedometerCharge = charge;
       }
 
-      // Multiplier badge
-      if (ui.multiplierBadge.current) {
-        const show = body.multiplier > 1;
-        ui.multiplierBadge.current.textContent = `${body.multiplier}x COMBO`;
-        ui.multiplierBadge.current.style.opacity = show ? "1" : "0";
-        ui.multiplierBadge.current.style.transform = show ? "scale(1)" : "scale(0.85)";
-        ui.multiplierBadge.current.style.color = body.multiplier >= 4 ? "#ff4fb3" : body.multiplier >= 3 ? "#fb923c" : "#ffd34a";
+      if (gameStartTimeRef.current && startedRef.current && !gameOverRef.current) {
+        setTextIfChanged(ui.timerDisplay, "timerDisplay", formatElapsed(now - gameStartTimeRef.current));
       }
 
-      // Momentum status label (below charge bar)
-      if (ui.momentumLabel.current) {
-        ui.momentumLabel.current.textContent = charge > 0.85
-          ? "STAMPEDE — HOLD YOUR GROUND"
-          : charge > 0.5
-          ? "BUILDING MOMENTUM"
-          : charge > 0.1
-          ? "WARMING UP"
-          : "READY TO CHARGE";
-        ui.momentumLabel.current.style.color = charge > 0.85 ? "#ff89d2" : charge > 0.5 ? "#ffd34a" : "rgba(255,255,255,0.4)";
-      }
-
-      // Score tally
-      if (ui.scoreTally.current) ui.scoreTally.current.textContent = body.score;
-
-      drawSpeedometer(charge);
-
-      if (ui.timerDisplay.current && gameStartTimeRef.current && startedRef.current && !gameOverRef.current) {
-        const elapsedMs = performance.now() - gameStartTimeRef.current;
-        const elapsed = Math.floor(elapsedMs / 1000);
-        const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
-        const ss = String(elapsed % 60).padStart(2, "0");
-        ui.timerDisplay.current.textContent = `${mm}:${ss}`;
-      }
-
-      if (ui.sectionBadge.current) ui.sectionBadge.current.textContent = sectionLabel();
-      if (ui.distance.current) ui.distance.current.textContent = `${Math.abs(Math.min(0, body.z)).toFixed(0)}`;
-      if (ui.fruit.current) ui.fruit.current.textContent = `${body.fruitLifeCounter}/100`;
-      if (ui.fruitLife.current) ui.fruitLife.current.style.width = `${body.fruitLifeCounter}%`;
-      if (ui.fruitTally.current) ui.fruitTally.current.textContent = body.fruit;
-      if (ui.cratesTally.current) ui.cratesTally.current.textContent = body.crates;
+      const section = sectionLabel();
+      setTextIfChanged(ui.sectionBadge, "sectionBadge", section);
+      setTextIfChanged(ui.distance, "distance", Math.abs(Math.min(0, body.z)).toFixed(0));
+      setTextIfChanged(ui.fruit, "fruit", `${body.fruitLifeCounter}/100`);
+      setTextIfChanged(ui.fruitTally, "fruitTally", body.fruit);
+      setTextIfChanged(ui.cratesTally, "cratesTally", body.crates);
 
       const prompt = promptText();
-      if (ui.prompt.current && prompt !== body.lastPrompt) {
+      if (prompt !== body.lastPrompt) {
         body.lastPrompt = prompt;
-        ui.prompt.current.textContent = prompt;
+        setTextIfChanged(ui.prompt, "prompt", prompt);
       }
 
       if (ui.debug.current) {
-        ui.debug.current.textContent = [
+        setTextIfChanged(ui.debug, "debug", [
           `FPS ${fps}`,
-          `Section ${sectionLabel()}`,
+          `Section ${section}`,
           `X ${body.x.toFixed(2)}  Y ${body.y.toFixed(2)}  Z ${body.z.toFixed(2)}`,
-          `Speed ${body.speed.toFixed(2)}  Charge ${(charge * 100).toFixed(0)}%`,
+          `Speed ${body.speed.toFixed(2)}  Charge ${roundedCharge}%`,
           `Grounded ${body.grounded}  Slide ${body.slideTimer > 0}`,
           `Lives ${body.lives}  Health ${body.health}`,
           `Fruit ${body.fruitLifeCounter}/100`,
           testSummaryRef.current,
-        ].join(nl);
+        ].join(nl));
+      }
+    }
+
+    function updateDom(now) {
+      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      updateHighFrequencyHud(charge);
+      if (now >= hudRefresh.nextLowAt) {
+        hudRefresh.nextLowAt = now + hudRefresh.lowIntervalMs;
+        updateLowFrequencyHud(now, charge);
       }
     }
 
@@ -1427,7 +1468,7 @@ export default function App() {
       updatePhysics(dt);
       updateMeshes(dt, now);
       updateCamera();
-      updateDom();
+      updateDom(now);
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);
     }

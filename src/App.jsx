@@ -20,7 +20,7 @@ import {
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
-import { createAudioManager } from "./game/audio/audioManager.js";
+import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import {
@@ -49,11 +49,149 @@ import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js"
 const nl = String.fromCharCode(10);
 const JUNGLE_LAYOUT_SEED = 0x5eed2026;
 
+const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
+
+function readStoredAudioState() {
+  if (typeof window === "undefined") return { ...DEFAULT_AUDIO_STATE };
+  try {
+    const stored = window.localStorage.getItem(AUDIO_PREFS_KEY);
+    return stored ? normalizeAudioState(JSON.parse(stored)) : { ...DEFAULT_AUDIO_STATE };
+  } catch {
+    return { ...DEFAULT_AUDIO_STATE };
+  }
+}
+
+function writeStoredAudioState(state) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(normalizeAudioState(state)));
+  } catch {
+    // Storage may be unavailable in private browsing or embedded previews.
+  }
+}
+
+function AudioControls({ audioState, onToggle, compact = false }) {
+  const allMuted = audioState.muted;
+  const musicMuted = audioState.muted || audioState.musicMuted;
+  const sfxMuted = audioState.muted || audioState.sfxMuted;
+  const buttonBase = compact
+    ? "pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
+  const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
+  const stopGestureStart = (event) => {
+    event.stopPropagation();
+  };
+
+  return (
+    <div className={wrapClass} onPointerDown={stopGestureStart} onKeyDown={stopGestureStart}>
+      <button
+        type="button"
+        onClick={() => onToggle("muted")}
+        className={buttonBase}
+        aria-pressed={allMuted}
+        aria-label={allMuted ? "Unmute all audio" : "Mute all audio"}
+        title="Mute or unmute all audio"
+        style={{ background: allMuted ? "rgba(248,113,113,0.92)" : "rgba(134,239,172,0.92)", color: "#082f1a" }}
+      >
+        {allMuted ? "🔇 Muted" : "🔊 Sound"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("musicMuted")}
+        className={buttonBase}
+        aria-pressed={musicMuted}
+        aria-label={musicMuted ? "Unmute music" : "Mute music"}
+        title="Toggle title and gameplay music"
+        style={{ background: musicMuted ? "rgba(255,255,255,0.14)" : "rgba(251,191,36,0.9)", color: musicMuted ? "rgba(255,255,255,0.75)" : "#422006", border: "1px solid rgba(255,255,255,0.16)" }}
+      >
+        Music {musicMuted ? "Off" : "On"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("sfxMuted")}
+        className={buttonBase}
+        aria-pressed={sfxMuted}
+        aria-label={sfxMuted ? "Unmute sound effects" : "Mute sound effects"}
+        title="Toggle jumps, pickups, impacts, and UI sounds"
+        style={{ background: sfxMuted ? "rgba(255,255,255,0.14)" : "rgba(244,114,182,0.9)", color: sfxMuted ? "rgba(255,255,255,0.75)" : "#4a044e", border: "1px solid rgba(255,255,255,0.16)" }}
+      >
+        SFX {sfxMuted ? "Off" : "On"}
+      </button>
+    </div>
+  );
+}
+
 function formatElapsed(elapsedMs) {
   const elapsed = Math.floor(elapsedMs / 1000);
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
   return `${mm}:${ss}`;
+}
+
+const LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard";
+const MAX_LEADERBOARD_ENTRIES = 20;
+const INITIALS_LENGTH = 3;
+
+function normalizeInitials(value) {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, INITIALS_LENGTH);
+}
+
+function normalizeLeaderboardEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const initials = normalizeInitials(entry.initials);
+  const score = Number(entry.score);
+  const elapsedMs = Number(entry.elapsedMs);
+  if (initials.length !== INITIALS_LENGTH || !Number.isFinite(score) || !Number.isFinite(elapsedMs)) return null;
+  return {
+    initials,
+    score,
+    elapsedMs,
+    fruit: Number.isFinite(Number(entry.fruit)) ? Number(entry.fruit) : undefined,
+    crates: Number.isFinite(Number(entry.crates)) ? Number(entry.crates) : undefined,
+    lives: Number.isFinite(Number(entry.lives)) ? Number(entry.lives) : undefined,
+    date: typeof entry.date === "string" ? entry.date : undefined,
+  };
+}
+
+function sortLeaderboardEntries(entries) {
+  return [...entries].sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
+}
+
+function loadLeaderboard() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return [];
+    const stored = window.localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return sortLeaderboardEntries(parsed.map(normalizeLeaderboardEntry).filter(Boolean)).slice(0, MAX_LEADERBOARD_ENTRIES);
+  } catch (error) {
+    console.warn("Unable to load leaderboard", error);
+    return [];
+  }
+}
+
+function saveLeaderboard(entries) {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
+  } catch (error) {
+    console.warn("Unable to save leaderboard", error);
+  }
+}
+
+function rankLeaderboardEntry(entries, result) {
+  if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.elapsedMs)) return -1;
+  const ranked = sortLeaderboardEntries([...entries, result]);
+  const rank = ranked.indexOf(result);
+  return rank >= 0 && rank < MAX_LEADERBOARD_ENTRIES ? rank : -1;
+}
+
+function insertLeaderboardEntry(entries, entry) {
+  return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
 }
 
 function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
@@ -154,6 +292,11 @@ export default function App() {
     source: isLeaderboardAvailable() ? "remote" : "local",
     error: null,
   });
+  const [leaderboard, setLeaderboard] = useState(() => loadLeaderboard());
+  const leaderboardRef = useRef(leaderboard);
+  const [initials, setInitials] = useState("");
+  const [pendingLeaderboardResult, setPendingLeaderboardResult] = useState(null);
+  const [audioState, setAudioState] = useState(readStoredAudioState);
 
   const ui = {
     health: useRef(null),
@@ -180,6 +323,24 @@ export default function App() {
     return audioManagerRef.current?.startAudio() ?? null;
   }
 
+  function applyAudioState(nextState) {
+    const normalized = normalizeAudioState(nextState);
+    audioManagerRef.current?.setAudioState(normalized);
+    writeStoredAudioState(normalized);
+    return normalized;
+  }
+
+  function toggleAudioState(key) {
+    setAudioState((current) => {
+      const next = normalizeAudioState({ ...current, [key]: !current[key] });
+      applyAudioState(next);
+      if (!next.muted && !next.musicMuted && !startedRef.current && !completeRef.current && !gameOverRef.current) {
+        audioManagerRef.current?.startTitleTheme(true);
+      }
+      return next;
+    });
+  }
+
   function startTitleTheme() {
     audioManagerRef.current?.startTitleTheme(!startedRef.current && !completeRef.current && !gameOverRef.current);
   }
@@ -191,6 +352,13 @@ export default function App() {
   function playTone(type, atTime = null) {
     audioManagerRef.current?.playTone(type, atTime);
   }
+
+  useEffect(() => {
+    leaderboardRef.current = leaderboard;
+  }, [leaderboard]);
+    audioManagerRef.current?.setAudioState(audioState);
+    writeStoredAudioState(audioState);
+  }, [audioState]);
 
   useEffect(() => {
     function beginTitleThemeFromGesture() {
@@ -1010,6 +1178,8 @@ export default function App() {
       gameOverRef.current = false;
       gameStartTimeRef.current = start ? performance.now() : null;
       setFinalResults(null);
+      setInitials("");
+      setPendingLeaderboardResult(null);
       setStarted(start);
       setComplete(false);
       setGameOver(false);
@@ -1108,7 +1278,12 @@ export default function App() {
       playTone("hurt");
       if (body.lives <= 0 && !gameOverRef.current) {
         gameOverRef.current = true;
-        setFinalResults(snapshotResults());
+        const results = snapshotResults();
+        setFinalResults(results);
+        if (rankLeaderboardEntry(leaderboardRef.current, results) !== -1) {
+          setPendingLeaderboardResult(results);
+          setInitials("");
+        }
         setGameOver(true);
       }
     }
@@ -1133,6 +1308,10 @@ export default function App() {
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
       setFinalResults(results);
+      if (rankLeaderboardEntry(leaderboardRef.current, results) !== -1) {
+        setPendingLeaderboardResult(results);
+        setInitials("");
+      }
       setComplete(true);
     }
 
@@ -1145,7 +1324,7 @@ export default function App() {
       burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
       burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
       popText(`TRUNK-SMASH! +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
-      playTone("smash");
+      playTone("crateSmash");
     }
 
     function collectScore(basePoints, comboWindowSeconds = SCORING.comboWindowSeconds) {
@@ -1164,7 +1343,7 @@ export default function App() {
       body.lives += livesAwarded;
       for (let i = 0; i < livesAwarded; i++) {
         popText("BONUS ELEPHANT!", body.x, body.y + 3.4, body.z, "#b7ffb7");
-        playTone("life");
+        playTone("bonusLife");
       }
     }
 
@@ -1264,6 +1443,7 @@ export default function App() {
 
       function playSlideEvent() {
         burst(body.x, 0.2, body.z, "#d6c399", 6, 0.2);
+        playTone("slideStart");
       }
 
       if (k.KeyZ && triggerPlayerSmash(body, playing)) {
@@ -1379,7 +1559,7 @@ export default function App() {
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", PARTICLES.monkeyBurstCount, 0.22);
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", PARTICLES.monkeySparkleCount, 0.18);
           popText(`MONKEY DOWN! +${pts}`, en.x, en.mesh.position.y + 2.8, en.z, "#ffcf66");
-          playTone("smash");
+          playTone("monkeyDefeat");
         } else {
           hurt(false);
         }
@@ -1591,22 +1771,24 @@ export default function App() {
       if (gameOverRef.current) return "The herd needs a breather. Try the trail again from here.";
       if (loop === 0) {
         if (local < 14) return "Hold ↑ to build Elephant Charge.";
-        if (local < 58) return "Follow the golden fruit and feel the big pink rhythm.";
-        if (local < 102) return "Use ← → to sway through the jungle trail.";
-        if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
-        if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
-        if (local < 194) return "Hold Space to Belly-Slide under vines; press ↓ to reverse.";
-        if (local < 218) return "Red-eyed banana monkeys patrol ahead — press E for a Spin Attack.";
-        if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
+        if (local < 42) return "Follow the golden fruit and feel the big pink rhythm.";
+        if (local < 64) return "Monkey patrol ahead — tap E for a Spin Attack.";
+        if (local < 96) return "Use ← → to sway through the jungle trail.";
+        if (local < 116) return "Tap Space to leap the log. Watch the shadow, not the ears.";
+        if (local < 142) return "Tap Space again in the air for a BIG Bounce.";
+        if (local < 162) return "Low vines ahead — hold Space to Belly-Slide.";
+        if (local < 192) return "Wooden crate ahead — press Z for a Trunk-Smash.";
+        if (local < 224) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
         return "Sugar cane restores energy after a jungle bump.";
       }
-      if (local < 58) return `${sectionLabel()}: build a braver Elephant Charge.`;
-      if (local < 102) return "Sway through the fruit trail. Big feet, gentle steering.";
-      if (local < 134) return "Leap the log. Keep the shadow clear.";
-      if (local < 168) return "Reach the high fruit with a BIG Bounce.";
-      if (local < 194) return "Belly-Slide low. Let the vines skim overhead.";
-      if (local < 218) return "Trunk-Smash the crate. Charge makes the jungle listen.";
-      if (local < 238) return "Crocodile creek again. Stop, read, then stampede.";
+      if (local < 42) return `${sectionLabel()}: build a braver Elephant Charge.`;
+      if (local < 64) return "Monkey patrol returning — tap E to Spin Attack.";
+      if (local < 96) return "Sway through the fruit trail. Big feet, gentle steering.";
+      if (local < 116) return "Leap the log. Keep the shadow clear.";
+      if (local < 142) return "Reach the high fruit with a BIG Bounce.";
+      if (local < 162) return "Belly-Slide low before the branch.";
+      if (local < 192) return "Trunk-Smash the crate with Z as it enters reach.";
+      if (local < 224) return "Crocodile creek again. Stop, read, then stampede.";
       return loop < 3 ? "Sugar cane ahead. Gather your elephant energy." : "Final stretch. Trumpet proudly towards the Jungle Gate!";
     }
 
@@ -1979,6 +2161,100 @@ export default function App() {
       </p>
     </div>
   );
+  const normalizedInitials = normalizeInitials(initials);
+  const initialsReady = normalizedInitials.length === INITIALS_LENGTH;
+
+  function submitLeaderboardInitials(event) {
+    event.preventDefault();
+    if (!pendingLeaderboardResult || !initialsReady) return;
+
+    const entry = {
+      initials: normalizedInitials,
+      score: pendingLeaderboardResult.score,
+      elapsedMs: pendingLeaderboardResult.elapsedMs,
+      fruit: pendingLeaderboardResult.fruit,
+      crates: pendingLeaderboardResult.crates,
+      lives: pendingLeaderboardResult.lives,
+      date: new Date().toISOString(),
+    };
+    const nextEntries = insertLeaderboardEntry(leaderboardRef.current, entry);
+    saveLeaderboard(nextEntries);
+    leaderboardRef.current = nextEntries;
+    setLeaderboard(nextEntries);
+    setPendingLeaderboardResult(null);
+  }
+
+  function renderInitialsForm(theme = "amber") {
+    if (!pendingLeaderboardResult) return null;
+    const accent = theme === "red" ? "text-red-50" : "text-amber-50";
+    const buttonClass = theme === "red" ? "bg-red-100 text-red-950" : "bg-amber-200 text-slate-950";
+
+    return (
+      <form onSubmit={submitLeaderboardInitials} className={`mx-auto mt-6 max-w-sm rounded-2xl p-4 ${accent}`}
+        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)" }}>
+        <label htmlFor={`leaderboard-initials-${theme}`} className="block text-sm font-black">
+          You made the Top 20! Enter your initials.
+        </label>
+        <div className="mt-3 flex items-center justify-center gap-3">
+          <input id={`leaderboard-initials-${theme}`} value={initials}
+            onChange={(event) => setInitials(normalizeInitials(event.target.value))}
+            maxLength={INITIALS_LENGTH} inputMode="text" autoComplete="off" autoFocus
+            className="w-24 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none focus:border-white/70"
+            aria-label="Leaderboard initials" />
+          <button type="submit" disabled={!initialsReady}
+            className={`rounded-full px-5 py-2 text-sm font-black transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${buttonClass}`}>
+            Submit
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  function renderLeaderboard(theme = "amber") {
+    const isRed = theme === "red";
+    const headingClass = isRed ? "text-red-100" : "text-amber-100";
+    const mutedClass = isRed ? "text-red-50/60" : "text-amber-50/60";
+    const tableClass = isRed ? "text-red-50" : "text-amber-50";
+
+    return (
+      <div className="mx-auto mt-6 w-full max-w-2xl rounded-2xl p-4 text-left"
+        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}>
+        <h3 className={`text-center text-sm font-black uppercase tracking-[0.22em] ${headingClass}`}>Top 20 Leaderboard</h3>
+        {leaderboard.length === 0 ? (
+          <p className={`mt-3 text-center text-sm ${mutedClass}`}>No trail legends yet. Be the first!</p>
+        ) : (
+          <div className="mt-3 max-h-60 overflow-y-auto pr-1">
+            <table className={`w-full border-separate border-spacing-y-1 text-xs ${tableClass}`}>
+              <thead className={mutedClass}>
+                <tr>
+                  <th className="px-2 py-1 text-left">Rank</th>
+                  <th className="px-2 py-1 text-left">Initials</th>
+                  <th className="px-2 py-1 text-right">Score</th>
+                  <th className="px-2 py-1 text-right">Time</th>
+                  <th className="px-2 py-1 text-right">Fruit</th>
+                  <th className="px-2 py-1 text-right">Crates</th>
+                  <th className="px-2 py-1 text-right">Lives</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.map((entry, index) => (
+                  <tr key={`${entry.initials}-${entry.score}-${entry.elapsedMs}-${entry.date ?? index}`} style={{ background: "rgba(0,0,0,0.18)" }}>
+                    <td className="rounded-l-lg px-2 py-1 font-black">#{index + 1}</td>
+                    <td className="px-2 py-1 font-black tracking-[0.16em]">{entry.initials}</td>
+                    <td className="px-2 py-1 text-right font-black">{entry.score}</td>
+                    <td className="px-2 py-1 text-right">{formatElapsed(entry.elapsedMs)}</td>
+                    <td className="px-2 py-1 text-right">{entry.fruit ?? "—"}</td>
+                    <td className="px-2 py-1 text-right">{entry.crates ?? "—"}</td>
+                    <td className="rounded-r-lg px-2 py-1 text-right">{entry.lives ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const startDemo = () => {
     stopTitleTheme(0.18);
@@ -2002,6 +2278,11 @@ export default function App() {
       )}
 
       {/* TOP STRIP — tally, section, timer */}
+      {started && !complete && !gameOver && (
+        <div className="pointer-events-auto absolute bottom-4 right-4 z-20">
+          <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
+        </div>
+      )}
       {started && !complete && !gameOver && (
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2"
           style={{ background: "linear-gradient(to bottom, rgba(10,18,10,0.72) 0%, transparent 100%)" }}>
@@ -2121,6 +2402,8 @@ export default function App() {
           style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(15,28,12,0.45) 50%, rgba(0,0,0,0.8) 100%)", backdropFilter: "blur(2px)" }}>
           <div className="w-full max-w-xl rounded-[2rem] p-8 text-center"
             style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
+          <div className="w-full max-w-3xl rounded-[2rem] p-8 text-center"
+            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)" }}>
             <div className="mb-2 text-xs font-black uppercase tracking-[0.38em] text-emerald-200/75">Three-Loop Jungle Trial</div>
             <div className="title-elephant-badge mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
               aria-label="Pink elephant mascot" role="img">
@@ -2141,20 +2424,24 @@ export default function App() {
             <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>
             <h2 className="display-title mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.05em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
-              Stomp through a guided jungle corridor. Gather golden fruit, leap logs, BIG Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
+              Stomp through a guided jungle corridor. Start with charge, steering, jumping, and sliding; the trail teaches tougher moves right before they matter.
             </p>
+            <AudioControls audioState={audioState} onToggle={toggleAudioState} />
             <button onClick={startDemo}
               className="mt-7 rounded-full px-10 py-4 text-base font-black text-slate-950 transition hover:scale-105 active:scale-95"
               style={{ background: "#f472b6", boxShadow: "0 0 30px rgba(244,114,182,0.45)" }}>
               Begin the Trail
             </button>
-            <div className="mt-6 grid grid-cols-2 gap-2 text-left text-xs text-amber-50/70">
-              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space", "Leap"], ["Hold Space", "Belly-Slide"], ["↓ / S", "Reverse"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
-                <div key={key} className="flex items-center gap-2 rounded-xl px-3 py-2"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
+            <div className="title-primary-controls mt-6 text-left text-xs text-amber-50/70" aria-label="Primary controls">
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Steer"], ["Tap Space", "Jump"], ["Hold Space", "Slide"]].map(([key, label]) => (
+                <div key={key} className="title-primary-control flex items-center gap-2 rounded-xl px-3 py-2">
+                  <span className="title-control-key shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
                 </div>
               ))}
+            </div>
+            {renderLeaderboard()}
+            <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
+              Advanced moves appear as trail prompts just before crates and monkey patrols.
             </div>
             <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{testSummary}</div>
             {renderLeaderboardPanel("#f9a8d4")}
@@ -2181,6 +2468,8 @@ export default function App() {
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             {renderLeaderboardPanel("#fde68a")}
+            {renderInitialsForm()}
+            {renderLeaderboard()}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Restart Trail
@@ -2208,6 +2497,8 @@ export default function App() {
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             {renderLeaderboardPanel("#fecaca")}
+            {renderInitialsForm("red")}
+            {renderLeaderboard("red")}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again

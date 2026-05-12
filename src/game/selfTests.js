@@ -1,5 +1,6 @@
 import { aabb, clamp, lerp } from "./math.js";
 import { branchHitsPlayer, obstacleBox, playerBox } from "./collision.js";
+import { applyFruitLifeCounter } from "./fruitLife.js";
 import { createKeys, setKeyState } from "./input.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
@@ -94,6 +95,15 @@ export function runSelfTests() {
     ["pulse1", "pulse2", "triangle", "noise"].every((voice) => voice in TITLE_THEME.sequence[0]),
   );
   assert("title theme note conversion tunes A4", Math.abs(noteNameToFrequency("A4") - 440) < 0.00001);
+
+  const pineappleAt80 = applyFruitLifeCounter(80, 20);
+  assert("golden pineapple awards a bonus life at 80 fruit", pineappleAt80.livesAwarded === 1 && pineappleAt80.counter === 0);
+
+  const pineappleAbove80 = applyFruitLifeCounter(85, 20);
+  assert("golden pineapple carries fruit progress after crossing 100", pineappleAbove80.livesAwarded === 1 && pineappleAbove80.counter === 5);
+
+  const normalFruitAt99 = applyFruitLifeCounter(99, 1);
+  assert("normal fruit bonus life threshold still resets at 100", normalFruitAt99.livesAwarded === 1 && normalFruitAt99.counter === 0);
 
   const keys = createKeys();
 

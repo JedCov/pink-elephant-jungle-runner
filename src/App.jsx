@@ -962,9 +962,6 @@ export default function App() {
         } else if (obs.type === "crate") {
           if (charge >= CONFIG.smashChargeThreshold || body.smashActionTimer > 0) breakCrate(obs);
           else if (!canRetreat) { hurt(false); blocked = true; }
-        } else if (obs.type === "gate") {
-          completeLevel(obs.z);
-          blocked = false;
         }
       }
 
@@ -1014,7 +1011,7 @@ export default function App() {
         }
       }
 
-      const crossedFinishPlane = body.z > LEVEL.finish.z && nz <= LEVEL.finish.z;
+      const crossedFinishPlane = nz <= LEVEL.finish.z;
       if (playing && !completeRef.current && (crossedFinishPlane || nz <= LEVEL.finish.failSafeZ)) {
         nz = LEVEL.finish.z;
         nx = worldX(nextLocalX, nz);

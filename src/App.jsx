@@ -1205,8 +1205,11 @@ export default function App() {
 
     function updateCamera() {
       const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
-      camera.fov = lerp(camera.fov, lerp(CONFIG.cameraFov, CONFIG.highChargeFov, charge), 0.04);
-      camera.updateProjectionMatrix();
+      const targetFov = lerp(CONFIG.cameraFov, CONFIG.highChargeFov, charge);
+      if (Math.abs(camera.fov - targetFov) > 0.01) {
+        camera.fov = lerp(camera.fov, targetFov, 0.04);
+        camera.updateProjectionMatrix();
+      }
       if (!startedRef.current) {
         const t = performance.now() * 0.00035;
         camera.position.set(trackCenter(-28) + Math.sin(t) * 14, 8.5, 15 + Math.cos(t) * 4);

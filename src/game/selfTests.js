@@ -146,6 +146,15 @@ export function runSelfTests() {
     reverseIntent.wantsReverse && !reverseIntent.wantsSlide && reverseBody.speed < 0 && reverseBody.speed >= -MOVEMENT.reverseMaxSpeed,
   );
 
+  const brakingBody = createPlayerBody({ speed: 8 });
+  const brakingKeys = createKeys();
+  brakingKeys.ArrowDown = true;
+  const brakingIntent = getPlayerInputIntent(brakingBody, brakingKeys, true);
+  assert(
+    "ArrowDown brakes or reverses without triggering slide",
+    brakingIntent.wantsReverse && !brakingIntent.wantsSlide,
+  );
+
   assert(
     "player state labels prioritise action states",
     selectPlayerStateLabel(createPlayerBody({ spinTimer: 0.2, slideTimer: 0.7 }), 0) === "Spin Attack"
@@ -175,15 +184,15 @@ export function runSelfTests() {
   assert("D mirrors ArrowRight", keys.ArrowRight);
 
   setKeyState(keys, "ShiftLeft", true);
-  assert("Shift mirrors Space", keys.Space);
+  assert("Shift does not mirror Space", !keys.Space);
 
   setKeyState(keys, "ShiftLeft", false);
-  assert("Shift release clears Space when spacebar is not held", !keys.Space);
+  assert("Shift release keeps Space clear", !keys.Space);
 
   setKeyState(keys, "Space", true);
   setKeyState(keys, "ShiftRight", true);
   setKeyState(keys, "ShiftRight", false);
-  assert("Space remains held after releasing Shift", keys.Space);
+  assert("Space remains held independently of Shift", keys.Space);
 
   return results;
 }

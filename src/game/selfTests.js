@@ -11,6 +11,7 @@ import {
   smashBox,
 } from "./collisions.js";
 import { applyFruitLifeCounter } from "./fruitLife.js";
+import { rankLeaderboardEntries } from "./leaderboard.js";
 import { createKeys, setKeyState } from "./input.js";
 import { isAudioCategoryMuted, normalizeAudioState, resolveTonePlayback } from "./audio/audioManager.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
@@ -40,6 +41,33 @@ export function runSelfTests() {
   const seededSequenceA = Array.from({ length: 8 }, () => seededA());
   const seededSequenceB = Array.from({ length: 8 }, () => seededB());
   const seededSequenceC = Array.from({ length: 8 }, () => seededC());
+  const leaderboardHigherScore = rankLeaderboardEntries([
+    { initials: "LOW", score: 100, elapsedMs: 1000, date: "2026-05-01T00:00:00.000Z" },
+    { initials: "WIN", score: 200, elapsedMs: 9000, date: "2026-05-01T00:00:00.000Z" },
+  ]);
+  assert("leaderboard ranks higher scores first", leaderboardHigherScore[0].initials === "WIN");
+
+  const leaderboardFasterTie = rankLeaderboardEntries([
+    { initials: "SLW", score: 100, elapsedMs: 3000, date: "2026-05-01T00:00:00.000Z" },
+    { initials: "FST", score: 100, elapsedMs: 2000, date: "2026-05-01T00:00:00.000Z" },
+  ]);
+  assert("leaderboard ranks faster times first when scores match", leaderboardFasterTie[0].initials === "FST");
+
+  const leaderboardCapped = rankLeaderboardEntries(
+    Array.from({ length: 25 }, (_, index) => ({
+      initials: `E${index}`,
+      score: index,
+      elapsedMs: 1000,
+      date: "2026-05-01T00:00:00.000Z",
+    })),
+  );
+  assert("leaderboard caps rankings at 20 entries", leaderboardCapped.length === 20);
+
+  const leaderboardInitials = rankLeaderboardEntries([
+    { initials: " peppy! ", score: 1, elapsedMs: 1000, date: "2026-05-01T00:00:00.000Z" },
+  ]);
+  assert("leaderboard normalizes initials to 3 uppercase characters", leaderboardInitials[0].initials === "PEP");
+
   assert(
     "seeded RNG repeats the same organic sequence for a seed",
     seededSequenceA.every((value, index) => value === seededSequenceB[index] && value >= 0 && value < 1),

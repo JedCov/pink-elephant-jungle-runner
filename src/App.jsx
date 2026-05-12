@@ -20,7 +20,7 @@ import {
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
-import { createAudioManager } from "./game/audio/audioManager.js";
+import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import {
@@ -41,6 +41,78 @@ import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js"
 
 const nl = String.fromCharCode(10);
 const JUNGLE_LAYOUT_SEED = 0x5eed2026;
+
+const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
+
+function readStoredAudioState() {
+  if (typeof window === "undefined") return { ...DEFAULT_AUDIO_STATE };
+  try {
+    const stored = window.localStorage.getItem(AUDIO_PREFS_KEY);
+    return stored ? normalizeAudioState(JSON.parse(stored)) : { ...DEFAULT_AUDIO_STATE };
+  } catch {
+    return { ...DEFAULT_AUDIO_STATE };
+  }
+}
+
+function writeStoredAudioState(state) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(normalizeAudioState(state)));
+  } catch {
+    // Storage may be unavailable in private browsing or embedded previews.
+  }
+}
+
+function AudioControls({ audioState, onToggle, compact = false }) {
+  const allMuted = audioState.muted;
+  const musicMuted = audioState.muted || audioState.musicMuted;
+  const sfxMuted = audioState.muted || audioState.sfxMuted;
+  const buttonBase = compact
+    ? "pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
+  const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
+  const stopGestureStart = (event) => {
+    event.stopPropagation();
+  };
+
+  return (
+    <div className={wrapClass} onPointerDown={stopGestureStart} onKeyDown={stopGestureStart}>
+      <button
+        type="button"
+        onClick={() => onToggle("muted")}
+        className={buttonBase}
+        aria-pressed={allMuted}
+        aria-label={allMuted ? "Unmute all audio" : "Mute all audio"}
+        title="Mute or unmute all audio"
+        style={{ background: allMuted ? "rgba(248,113,113,0.92)" : "rgba(134,239,172,0.92)", color: "#082f1a" }}
+      >
+        {allMuted ? "🔇 Muted" : "🔊 Sound"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("musicMuted")}
+        className={buttonBase}
+        aria-pressed={musicMuted}
+        aria-label={musicMuted ? "Unmute music" : "Mute music"}
+        title="Toggle title and gameplay music"
+        style={{ background: musicMuted ? "rgba(255,255,255,0.14)" : "rgba(251,191,36,0.9)", color: musicMuted ? "rgba(255,255,255,0.75)" : "#422006", border: "1px solid rgba(255,255,255,0.16)" }}
+      >
+        Music {musicMuted ? "Off" : "On"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("sfxMuted")}
+        className={buttonBase}
+        aria-pressed={sfxMuted}
+        aria-label={sfxMuted ? "Unmute sound effects" : "Mute sound effects"}
+        title="Toggle jumps, pickups, impacts, and UI sounds"
+        style={{ background: sfxMuted ? "rgba(255,255,255,0.14)" : "rgba(244,114,182,0.9)", color: sfxMuted ? "rgba(255,255,255,0.75)" : "#4a044e", border: "1px solid rgba(255,255,255,0.16)" }}
+      >
+        SFX {sfxMuted ? "Off" : "On"}
+      </button>
+    </div>
+  );
+}
 
 function formatElapsed(elapsedMs) {
   const elapsed = Math.floor(elapsedMs / 1000);
@@ -137,6 +209,7 @@ export default function App() {
   const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
+  const [audioState, setAudioState] = useState(readStoredAudioState);
 
   const ui = {
     health: useRef(null),
@@ -163,6 +236,24 @@ export default function App() {
     return audioManagerRef.current?.startAudio() ?? null;
   }
 
+  function applyAudioState(nextState) {
+    const normalized = normalizeAudioState(nextState);
+    audioManagerRef.current?.setAudioState(normalized);
+    writeStoredAudioState(normalized);
+    return normalized;
+  }
+
+  function toggleAudioState(key) {
+    setAudioState((current) => {
+      const next = normalizeAudioState({ ...current, [key]: !current[key] });
+      applyAudioState(next);
+      if (!next.muted && !next.musicMuted && !startedRef.current && !completeRef.current && !gameOverRef.current) {
+        audioManagerRef.current?.startTitleTheme(true);
+      }
+      return next;
+    });
+  }
+
   function startTitleTheme() {
     audioManagerRef.current?.startTitleTheme(!startedRef.current && !completeRef.current && !gameOverRef.current);
   }
@@ -174,6 +265,11 @@ export default function App() {
   function playTone(type, atTime = null) {
     audioManagerRef.current?.playTone(type, atTime);
   }
+
+  useEffect(() => {
+    audioManagerRef.current?.setAudioState(audioState);
+    writeStoredAudioState(audioState);
+  }, [audioState]);
 
   useEffect(() => {
     function beginTitleThemeFromGesture() {
@@ -1860,6 +1956,11 @@ export default function App() {
 
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
+        <div className="pointer-events-auto absolute bottom-4 right-4 z-20">
+          <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
+        </div>
+      )}
+      {started && !complete && !gameOver && (
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2"
           style={{ background: "linear-gradient(to bottom, rgba(10,18,10,0.72) 0%, transparent 100%)" }}>
           <div className="flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
@@ -2000,6 +2101,7 @@ export default function App() {
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
               Stomp through a guided jungle corridor. Gather golden fruit, leap logs, BIG Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
             </p>
+            <AudioControls audioState={audioState} onToggle={toggleAudioState} />
             <button onClick={startDemo}
               className="mt-7 rounded-full px-10 py-4 text-base font-black text-slate-950 transition hover:scale-105 active:scale-95"
               style={{ background: "#f472b6", boxShadow: "0 0 30px rgba(244,114,182,0.45)" }}>

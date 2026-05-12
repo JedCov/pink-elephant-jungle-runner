@@ -9,6 +9,27 @@ export const AUDIO_CATEGORY_VOLUMES = {
   ui: 0.72,
 };
 
+export const DEFAULT_AUDIO_STATE = Object.freeze({
+  muted: false,
+  musicMuted: false,
+  sfxMuted: false,
+});
+
+export function normalizeAudioState(state = {}) {
+  return {
+    muted: Boolean(state.muted),
+    musicMuted: Boolean(state.musicMuted),
+    sfxMuted: Boolean(state.sfxMuted),
+  };
+}
+
+export function isAudioCategoryMuted(state, category) {
+  const normalized = normalizeAudioState(state);
+  if (normalized.muted) return true;
+  if (category === "music") return normalized.musicMuted;
+  return normalized.sfxMuted;
+}
+
 const TONE_SETTINGS = {
   jump: [180, 340, 0.08, "sine", 0.08, "ui"],
   double: [360, 720, 0.09, "triangle", 0.09, "ui"],
@@ -55,8 +76,19 @@ export function createAudioManager() {
   let master = null;
   let titleTheme = null;
   let disposed = false;
+  let audioState = { ...DEFAULT_AUDIO_STATE };
   const music = { enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 };
   const lastPlayedTimes = new Map();
+
+  function applyMasterGain() {
+    if (!ctx || !master) return;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(audioState.muted ? 0.0001 : 0.78, ctx.currentTime, 0.018);
+  }
+
+  function shouldPlayCategory(category) {
+    return !isAudioCategoryMuted(audioState, category);
+  }
 
   function ensureContext() {
     if (disposed) disposed = false;
@@ -70,23 +102,41 @@ export function createAudioManager() {
 
     ctx = new AudioContext();
     master = ctx.createGain();
-    master.gain.setValueAtTime(0.78, ctx.currentTime);
+    master.gain.setValueAtTime(audioState.muted ? 0.0001 : 0.78, ctx.currentTime);
     master.connect(ctx.destination);
     if (ctx.state === "suspended") void ctx.resume();
     return ctx;
   }
 
+  function setAudioState(nextState) {
+    audioState = normalizeAudioState({ ...audioState, ...nextState });
+    if (!shouldPlayCategory("music")) {
+      music.enabled = false;
+      titleTheme?.stop(0.08);
+    } else if (ctx) {
+      music.enabled = true;
+      music.nextNoteTime = Math.max(music.nextNoteTime, ctx.currentTime + 0.08);
+    }
+    applyMasterGain();
+    return getAudioState();
+  }
+
+  function getAudioState() {
+    return { ...audioState };
+  }
+
   function startAudio() {
     const audioContext = ensureContext();
     if (!audioContext) return null;
-    music.enabled = true;
+    music.enabled = shouldPlayCategory("music");
     music.nextNoteTime = audioContext.currentTime + 0.08;
     return audioContext;
   }
 
   function startTitleTheme(canStart = true) {
+    if (!canStart || !shouldPlayCategory("music")) return;
     const audioContext = startAudio();
-    if (!audioContext || !canStart || !master) return;
+    if (!audioContext || !master) return;
     if (!titleTheme) titleTheme = createTitleThemePlayer(audioContext, master);
     titleTheme.start();
   }
@@ -108,12 +158,15 @@ export function createAudioManager() {
     const repeatDecision = resolveTonePlayback(type, now, lastPlayedTimes);
     if (!repeatDecision.shouldPlay) return { played: false, reason: "repeat-window" };
 
+    const settings = TONE_SETTINGS[type] || [250, 250, 0.1, "sine", 0.05, "ui"];
+    const category = settings[5];
+    if (!shouldPlayCategory(category)) return { played: false, reason: "muted" };
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(master);
-    const settings = TONE_SETTINGS[type] || [250, 250, 0.1, "sine", 0.05, "ui"];
-    const categoryVolume = AUDIO_CATEGORY_VOLUMES[settings[5]] ?? 1;
+    const categoryVolume = AUDIO_CATEGORY_VOLUMES[category] ?? 1;
     const level = settings[4] * categoryVolume * repeatDecision.volumeScale;
     osc.type = settings[3];
     osc.frequency.setValueAtTime(settings[0], now);
@@ -127,11 +180,11 @@ export function createAudioManager() {
   }
 
   function updateGameplayMusic({ charge, isPlaying }) {
-    if (!ctx || !master || !music.enabled || !isPlaying || disposed) return;
+    if (!ctx || !master || !music.enabled || !isPlaying || disposed || !shouldPlayCategory("music")) return;
     music.beatSeconds = lerp(0.26, 0.15, charge);
     while (music.nextNoteTime < ctx.currentTime + 0.1) {
       const note = NOTES[music.noteIndex % NOTES.length];
-      playTone("thump", music.nextNoteTime);
+      if (shouldPlayCategory("impacts")) playTone("thump", music.nextNoteTime);
       if (music.noteIndex % 2 === 0) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -178,6 +231,8 @@ export function createAudioManager() {
   return {
     startAudio,
     startTitleTheme,
+    setAudioState,
+    getAudioState,
     stopTitleTheme,
     playTone,
     resetGameplayMusic,

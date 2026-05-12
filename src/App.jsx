@@ -22,7 +22,6 @@ import {
   updatePlayerAir,
   updatePlayerSpeed,
   updatePlayerSteering,
-  startPlayerSlide,
 } from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
 import { runSelfTests } from "./game/selfTests.js";
@@ -929,8 +928,6 @@ export default function App() {
         if (event === "slide") playSlideEvent();
         else playJumpEvent(event);
       }
-      if (intent.wantsSlide && startPlayerSlide(body)) playSlideEvent();
-
       const airUpdate = updatePlayerAir(body, ny, dt);
       ny = airUpdate.y;
       if (airUpdate.landed) {
@@ -1191,7 +1188,7 @@ export default function App() {
         if (local < 102) return "Use ← → to sway through the jungle trail.";
         if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
         if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
-        if (local < 194) return "Hold Space or press ↓ to Belly-Slide under vines.";
+        if (local < 194) return "Hold Space to Belly-Slide under vines; press ↓ to reverse.";
         if (local < 218) return "Charge hard, press Z for Trunk-Smash, or E for a Spin Attack on monkeys.";
         if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
         return "Sugar cane restores energy after a jungle bump.";
@@ -1639,7 +1636,7 @@ export default function App() {
               Begin the Trail
             </button>
             <div className="mt-6 grid grid-cols-2 gap-2 text-left text-xs text-amber-50/70">
-              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space / Shift", "Leap"], ["Hold Space / Shift / ↓ / S", "Belly-Slide"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space", "Leap"], ["Hold Space", "Belly-Slide"], ["↓ / S", "Reverse"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
                 <div key={key} className="flex items-center gap-2 rounded-xl px-3 py-2"
                   style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>

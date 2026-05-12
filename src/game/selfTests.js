@@ -129,21 +129,31 @@ export function runSelfTests() {
 
   const slideBody = createPlayerBody({ speed: 8 });
   const slideKeys = createKeys();
-  slideKeys.Space = true;
+  setKeyState(slideKeys, "Space", true);
   const slideEvents = updateJumpAndSlideInput(slideBody, slideKeys, MOVEMENT.slideHoldThreshold, true);
   assert(
-    "player helper converts held action into slide",
+    "player helper converts held Space into slide",
     slideEvents.includes("slide") && slideBody.slideTimer === MOVEMENT.slideDuration && !slideBody.bufferedSlide,
   );
 
   const reverseBody = createPlayerBody();
   const reverseKeys = createKeys();
-  reverseKeys.ArrowDown = true;
+  setKeyState(reverseKeys, "ArrowDown", true);
   const reverseIntent = getPlayerInputIntent(reverseBody, reverseKeys, true);
   updatePlayerSpeed(reverseBody, 0.5, true, reverseIntent);
   assert(
     "player helper accelerates reverse from rest",
-    reverseIntent.wantsReverse && !reverseIntent.wantsSlide && reverseBody.speed < 0 && reverseBody.speed >= -MOVEMENT.reverseMaxSpeed,
+    reverseIntent.wantsReverse && reverseBody.speed < 0 && reverseBody.speed >= -MOVEMENT.reverseMaxSpeed,
+  );
+
+  const fastReverseBody = createPlayerBody({ speed: 8 });
+  const fastReverseKeys = createKeys();
+  setKeyState(fastReverseKeys, "ArrowDown", true);
+  const fastReverseIntent = getPlayerInputIntent(fastReverseBody, fastReverseKeys, true);
+  updatePlayerSpeed(fastReverseBody, 0.2, true, fastReverseIntent);
+  assert(
+    "ArrowDown reverses instead of starting a high-speed slide",
+    fastReverseIntent.wantsReverse && fastReverseBody.slideTimer === 0 && fastReverseBody.speed < 8,
   );
 
   assert(
@@ -175,15 +185,12 @@ export function runSelfTests() {
   assert("D mirrors ArrowRight", keys.ArrowRight);
 
   setKeyState(keys, "ShiftLeft", true);
-  assert("Shift mirrors Space", keys.Space);
-
-  setKeyState(keys, "ShiftLeft", false);
-  assert("Shift release clears Space when spacebar is not held", !keys.Space);
+  assert("Shift no longer mirrors Space", !keys.Space && keys.ShiftLeft);
 
   setKeyState(keys, "Space", true);
   setKeyState(keys, "ShiftRight", true);
   setKeyState(keys, "ShiftRight", false);
-  assert("Space remains held after releasing Shift", keys.Space);
+  assert("Space remains held independently of Shift", keys.Space);
 
   return results;
 }

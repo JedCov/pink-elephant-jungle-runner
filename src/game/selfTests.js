@@ -12,7 +12,7 @@ import {
 } from "./collisions.js";
 import { applyFruitLifeCounter } from "./fruitLife.js";
 import { createKeys, setKeyState } from "./input.js";
-import { resolveTonePlayback } from "./audio/audioManager.js";
+import { isAudioCategoryMuted, normalizeAudioState, resolveTonePlayback } from "./audio/audioManager.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
 import { CONFIG, MOVEMENT } from "./config.js";
@@ -196,6 +196,23 @@ export function runSelfTests() {
     ["pulse1", "pulse2", "triangle", "noise"].every((voice) => voice in TITLE_THEME.sequence[0]),
   );
   assert("title theme note conversion tunes A4", Math.abs(noteNameToFrequency("A4") - 440) < 0.00001);
+
+  const persistedAudio = normalizeAudioState({ muted: 1, musicMuted: 0, sfxMuted: "yes" });
+  assert(
+    "audio state normalizes persisted mute flags",
+    persistedAudio.muted === true && persistedAudio.musicMuted === false && persistedAudio.sfxMuted === true,
+  );
+  assert(
+    "audio mute gates first-gesture title autoplay for muted and unmuted states",
+    isAudioCategoryMuted({ muted: true, musicMuted: false, sfxMuted: false }, "music")
+      && isAudioCategoryMuted({ muted: false, musicMuted: true, sfxMuted: false }, "music")
+      && !isAudioCategoryMuted({ muted: false, musicMuted: false, sfxMuted: false }, "music"),
+  );
+  assert(
+    "audio state can separately mute sfx without muting music",
+    isAudioCategoryMuted({ muted: false, musicMuted: false, sfxMuted: true }, "impacts")
+      && !isAudioCategoryMuted({ muted: false, musicMuted: false, sfxMuted: true }, "music"),
+  );
 
   const denseFruitTimes = new Map([["fruit", 10]]);
   const denseFruitSkipped = resolveTonePlayback("fruit", 10.01, denseFruitTimes);

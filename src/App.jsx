@@ -153,6 +153,72 @@ function formatElapsed(elapsedMs) {
   return `${mm}:${ss}`;
 }
 
+const LEGACY_LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard";
+const MAX_LEADERBOARD_ENTRIES = 20;
+const INITIALS_LENGTH = 3;
+
+function normalizeLegacyInitials(value) {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, INITIALS_LENGTH);
+}
+
+function normalizeLegacyLeaderboardEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const initials = normalizeLegacyInitials(entry.initials);
+  const score = Number(entry.score);
+  const elapsedMs = Number(entry.elapsedMs);
+  if (initials.length !== INITIALS_LENGTH || !Number.isFinite(score) || !Number.isFinite(elapsedMs)) return null;
+  return {
+    initials,
+    score,
+    elapsedMs,
+    fruit: Number.isFinite(Number(entry.fruit)) ? Number(entry.fruit) : undefined,
+    crates: Number.isFinite(Number(entry.crates)) ? Number(entry.crates) : undefined,
+    lives: Number.isFinite(Number(entry.lives)) ? Number(entry.lives) : undefined,
+    date: typeof entry.date === "string" ? entry.date : undefined,
+  };
+}
+
+function sortLeaderboardEntries(entries) {
+  return [...entries].sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
+}
+
+function loadLegacyLeaderboard() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return [];
+    const stored = window.localStorage.getItem(LEGACY_LEADERBOARD_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return sortLeaderboardEntries(parsed.map(normalizeLegacyLeaderboardEntry).filter(Boolean)).slice(0, MAX_LEADERBOARD_ENTRIES);
+  } catch (error) {
+    console.warn("Unable to load leaderboard", error);
+    return [];
+  }
+}
+
+function saveLegacyLeaderboard(entries) {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    window.localStorage.setItem(LEGACY_LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
+  } catch (error) {
+    console.warn("Unable to save leaderboard", error);
+  }
+}
+
+function rankLegacyLeaderboardEntry(entries, result) {
+  if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.elapsedMs)) return -1;
+  const ranked = sortLeaderboardEntries([...entries, result]);
+  const rank = ranked.indexOf(result);
+  return rank >= 0 && rank < MAX_LEADERBOARD_ENTRIES ? rank : -1;
+}
+
+function insertLegacyLeaderboardEntry(entries, entry) {
+  return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
+}
+
 const INITIALS_LENGTH = 3;
 
 function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
@@ -229,6 +295,8 @@ export default function App() {
   const completeRef = useRef(false);
   const gameOverRef = useRef(false);
   const debugRef = useRef(false);
+  const pausedRef = useRef(false);
+  const pauseStartedAtRef = useRef(null);
   const audioManagerRef = useRef(null);
   if (!audioManagerRef.current) audioManagerRef.current = createAudioManager();
   const resetGameRef = useRef(null);
@@ -239,6 +307,7 @@ export default function App() {
   const [complete, setComplete] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [sceneError, setSceneError] = useState(null);
   const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
@@ -254,6 +323,9 @@ export default function App() {
     source: isLeaderboardAvailable() ? "remote" : "local",
     error: null,
   });
+  const [leaderboard, setLeaderboard] = useState(() => loadLegacyLeaderboard());
+  const leaderboardRef = useRef(leaderboard);
+  const [pendingLeaderboardResult, setPendingLeaderboardResult] = useState(null);
   const [audioState, setAudioState] = useState(readStoredAudioState);
 
   const ui = {
@@ -276,6 +348,36 @@ export default function App() {
     scoreTally: useRef(null),
     debug: useRef(null),
   };
+
+
+  function setPausedState(nextPaused) {
+    const shouldPause = Boolean(nextPaused) && startedRef.current && !completeRef.current && !gameOverRef.current;
+    if (pausedRef.current === shouldPause) {
+      if (shouldPause) keyRef.current = createKeys();
+      return;
+    }
+
+    pausedRef.current = shouldPause;
+    keyRef.current = createKeys();
+    if (shouldPause) {
+      pauseStartedAtRef.current = performance.now();
+      audioManagerRef.current?.updateGameplayMusic({ charge: 0, isPlaying: false });
+    } else {
+      if (pauseStartedAtRef.current !== null && gameStartTimeRef.current) {
+        gameStartTimeRef.current += performance.now() - pauseStartedAtRef.current;
+      }
+      pauseStartedAtRef.current = null;
+    }
+    setPaused(shouldPause);
+  }
+
+  function resumeGame() {
+    setPausedState(false);
+  }
+
+  function restartGame() {
+    resetGameRef.current?.({ start: true });
+  }
 
   function startAudio() {
     return audioManagerRef.current?.startAudio() ?? null;
@@ -323,6 +425,10 @@ export default function App() {
       return nextEntries;
     });
   }
+
+  useEffect(() => {
+    leaderboardRef.current = leaderboard;
+  }, [leaderboard]);
 
   useEffect(() => {
     audioManagerRef.current?.setAudioState(audioState);
@@ -1145,12 +1251,15 @@ export default function App() {
       startedRef.current = start;
       completeRef.current = false;
       gameOverRef.current = false;
+      pausedRef.current = false;
+      pauseStartedAtRef.current = null;
       gameStartTimeRef.current = start ? performance.now() : null;
       setFinalResults(null);
       setInitials("");
       setStarted(start);
       setComplete(false);
       setGameOver(false);
+      setPaused(false);
     }
 
     resetGameRef.current = resetGame;
@@ -1249,6 +1358,11 @@ export default function App() {
         const results = snapshotResults();
         recordLeaderboardResult(results);
         setFinalResults(results);
+        setPausedState(false);
+        if (rankLegacyLeaderboardEntry(leaderboardRef.current, results) !== -1) {
+          setPendingLeaderboardResult(results);
+          setInitials("");
+        }
         setInitials("");
         setGameOver(true);
       }
@@ -1270,11 +1384,16 @@ export default function App() {
       const results = snapshotResults();
       body.completed = true;
       completeRef.current = true;
+      setPausedState(false);
       body.speed = 0;
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
       recordLeaderboardResult(results);
       setFinalResults(results);
+      if (rankLegacyLeaderboardEntry(leaderboardRef.current, results) !== -1) {
+        setPendingLeaderboardResult(results);
+        setInitials("");
+      }
       setInitials("");
       setComplete(true);
     }
@@ -1321,11 +1440,19 @@ export default function App() {
     function keyDown(e) {
       if (!isAllowedKey(e.code)) return;
       e.preventDefault();
-      if (e.code === "Backquote" && !keyRef.current.__pressed.Backquote) {
+      const wasPressed = Boolean(keyRef.current.__pressed[e.code]);
+      if (e.code === "Backquote" && !wasPressed) {
         debugRef.current = !debugRef.current;
         setDebug(debugRef.current);
       }
-      setKeyState(keyRef.current, e.code, true);
+      if (e.code === "Escape" || e.code === "KeyP") {
+        if (!e.repeat && !wasPressed) {
+          if (startedRef.current && !completeRef.current && !gameOverRef.current) setPausedState(!pausedRef.current);
+          else keyRef.current = createKeys();
+        }
+        return;
+      }
+      if (!pausedRef.current) setKeyState(keyRef.current, e.code, true);
     }
 
     function keyUp(e) {
@@ -1334,7 +1461,10 @@ export default function App() {
       setKeyState(keyRef.current, e.code, false);
     }
 
-    function blur() { keyRef.current = createKeys(); }
+    function blur() {
+      keyRef.current = createKeys();
+      if (startedRef.current && !completeRef.current && !gameOverRef.current) setPausedState(true);
+    }
 
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
@@ -1354,7 +1484,7 @@ export default function App() {
     }
 
     function updateMusicAndStampede(charge) {
-      const isPlaying = startedRef.current && !completeRef.current && !gameOverRef.current;
+      const isPlaying = startedRef.current && !completeRef.current && !gameOverRef.current && !pausedRef.current;
       audioManagerRef.current?.updateGameplayMusic({ charge, isPlaying });
       if (!isPlaying) return;
       const audioTime = audioManagerRef.current?.getCurrentTime() ?? 0;
@@ -1380,7 +1510,7 @@ export default function App() {
 
     function updatePhysics(dt) {
       const k = keyRef.current;
-      const playing = startedRef.current && !completeRef.current && !gameOverRef.current && body.lives > 0;
+      const playing = startedRef.current && !completeRef.current && !gameOverRef.current && !pausedRef.current && body.lives > 0;
       const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const wasGrounded = body.grounded;
 
@@ -1939,6 +2069,11 @@ export default function App() {
         frames = 0;
         lastFpsTime = now;
       }
+      if (pausedRef.current) {
+        renderer.render(scene, camera);
+        frame = requestAnimationFrame(animate);
+        return;
+      }
       updatePhysics(dt);
       updateMeshes(dt, now);
       updateCamera(dt);
@@ -2102,6 +2237,101 @@ export default function App() {
       </p>
     </div>
   );
+  const normalizedInitials = normalizeLegacyInitials(initials);
+  const initialsReady = normalizedInitials.length === INITIALS_LENGTH;
+
+  function submitLeaderboardInitials(event) {
+    event.preventDefault();
+    if (!pendingLeaderboardResult || !initialsReady) return;
+
+    const entry = {
+      initials: normalizedInitials,
+      score: pendingLeaderboardResult.score,
+      elapsedMs: pendingLeaderboardResult.elapsedMs,
+      fruit: pendingLeaderboardResult.fruit,
+      crates: pendingLeaderboardResult.crates,
+      lives: pendingLeaderboardResult.lives,
+      date: new Date().toISOString(),
+    };
+    const nextEntries = insertLegacyLeaderboardEntry(leaderboardRef.current, entry);
+    saveLegacyLeaderboard(nextEntries);
+    leaderboardRef.current = nextEntries;
+    setLeaderboard(nextEntries);
+    setPendingLeaderboardResult(null);
+  }
+
+  function renderInitialsForm(theme = "amber") {
+    if (!pendingLeaderboardResult) return null;
+    const accent = theme === "red" ? "text-red-50" : "text-amber-50";
+    const buttonClass = theme === "red" ? "bg-red-100 text-red-950" : "bg-amber-200 text-slate-950";
+
+    return (
+      <form onSubmit={submitLeaderboardInitials} className={`mx-auto mt-6 max-w-sm rounded-2xl p-4 ${accent}`}
+        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)" }}>
+        <label htmlFor={`leaderboard-initials-${theme}`} className="block text-sm font-black">
+          You made the Top 20! Enter your initials.
+        </label>
+        <div className="mt-3 flex items-center justify-center gap-3">
+          <input id={`leaderboard-initials-${theme}`} value={initials}
+            onChange={(event) => setInitials(normalizeLegacyInitials(event.target.value))}
+            maxLength={INITIALS_LENGTH} inputMode="text" autoComplete="off" autoFocus
+            className="w-24 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none focus:border-white/70"
+            aria-label="Leaderboard initials" />
+          <button type="submit" disabled={!initialsReady}
+            className={`rounded-full px-5 py-2 text-sm font-black transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${buttonClass}`}>
+            Submit
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  function renderLeaderboard(theme = "amber") {
+    const isRed = theme === "red";
+    const headingClass = isRed ? "text-red-100" : "text-amber-100";
+    const mutedClass = isRed ? "text-red-50/60" : "text-amber-50/60";
+    const tableClass = isRed ? "text-red-50" : "text-amber-50";
+
+    return (
+      <div className="mx-auto mt-6 w-full max-w-2xl rounded-2xl p-4 text-left"
+        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}>
+        <h3 className={`text-center text-sm font-black uppercase tracking-[0.22em] ${headingClass}`}>Top 20 Leaderboard</h3>
+        {leaderboard.length === 0 ? (
+          <p className={`mt-3 text-center text-sm ${mutedClass}`}>No trail legends yet. Be the first!</p>
+        ) : (
+          <div className="mt-3 max-h-60 overflow-y-auto pr-1">
+            <table className={`w-full border-separate border-spacing-y-1 text-xs ${tableClass}`}>
+              <thead className={mutedClass}>
+                <tr>
+                  <th className="px-2 py-1 text-left">Rank</th>
+                  <th className="px-2 py-1 text-left">Initials</th>
+                  <th className="px-2 py-1 text-right">Score</th>
+                  <th className="px-2 py-1 text-right">Time</th>
+                  <th className="px-2 py-1 text-right">Fruit</th>
+                  <th className="px-2 py-1 text-right">Crates</th>
+                  <th className="px-2 py-1 text-right">Lives</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.map((entry, index) => (
+                  <tr key={`${entry.initials}-${entry.score}-${entry.elapsedMs}-${entry.date ?? index}`} style={{ background: "rgba(0,0,0,0.18)" }}>
+                    <td className="rounded-l-lg px-2 py-1 font-black">#{index + 1}</td>
+                    <td className="px-2 py-1 font-black tracking-[0.16em]">{entry.initials}</td>
+                    <td className="px-2 py-1 text-right font-black">{entry.score}</td>
+                    <td className="px-2 py-1 text-right">{formatElapsed(entry.elapsedMs)}</td>
+                    <td className="px-2 py-1 text-right">{entry.fruit ?? "—"}</td>
+                    <td className="px-2 py-1 text-right">{entry.crates ?? "—"}</td>
+                    <td className="rounded-r-lg px-2 py-1 text-right">{entry.lives ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
@@ -2300,6 +2530,7 @@ export default function App() {
                 ))}
               </div>
             </div>
+            {renderLeaderboard()}
             <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
               Advanced moves appear as trail prompts just before crates and monkey patrols.
             </div>
@@ -2359,6 +2590,36 @@ export default function App() {
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again
             </button>
+          </div>
+        </section>
+      )}
+
+      {/* PAUSE OVERLAY */}
+      {paused && started && !complete && !gameOver && !sceneError && (
+        <section className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center px-6"
+          style={{ background: "rgba(7,12,8,0.42)", backdropFilter: "blur(3px)" }}
+          aria-modal="true" role="dialog" aria-labelledby="pause-title">
+          <div className="rounded-[1.5rem] p-6 text-center text-amber-50"
+            style={{ background: "rgba(12,20,10,0.9)", border: "1px solid rgba(246,210,138,0.28)", boxShadow: "0 0 45px rgba(0,0,0,0.32)" }}>
+            <div className="text-xs font-black uppercase tracking-[0.32em] text-emerald-200/70">Trail Paused</div>
+            <h2 id="pause-title" className="display-title mt-1 text-3xl font-black text-pink-200">Take a Jungle Breather</h2>
+            <p className="mt-2 text-sm text-amber-50/65">Press Esc or P to resume. Input was cleared so no move sticks after focus changes.</p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <button type="button" onClick={resumeGame}
+                className="rounded-full bg-emerald-200 px-5 py-2 text-sm font-black text-emerald-950 transition hover:scale-105 active:scale-95">
+                Resume
+              </button>
+              <button type="button" onClick={restartGame}
+                className="rounded-full bg-amber-200 px-5 py-2 text-sm font-black text-slate-950 transition hover:scale-105 active:scale-95">
+                Restart
+              </button>
+              <button type="button" onClick={() => toggleAudioState("muted")}
+                className="rounded-full px-5 py-2 text-sm font-black transition hover:scale-105 active:scale-95"
+                aria-pressed={audioState.muted}
+                style={{ background: audioState.muted ? "rgba(248,113,113,0.92)" : "rgba(134,239,172,0.92)", color: "#082f1a" }}>
+                {audioState.muted ? "Unmute" : "Mute"}
+              </button>
+            </div>
           </div>
         </section>
       )}

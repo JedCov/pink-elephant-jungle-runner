@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * @typedef {"ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Space" | "KeyW" | "KeyA" | "KeyS" | "KeyD" | "KeyZ" | "KeyE" | "ShiftLeft" | "ShiftRight" | "Backquote"} InputCode
+ * @typedef {"ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Space" | "KeyW" | "KeyA" | "KeyS" | "KeyD" | "KeyZ" | "KeyE" | "ShiftLeft" | "ShiftRight" | "Backquote" | "Escape" | "KeyP"} InputCode
  */
 
 /**
@@ -30,6 +30,8 @@ const ALLOWED_KEYS = [
   "ShiftLeft",
   "ShiftRight",
   "Backquote",
+  "Escape",
+  "KeyP",
 ];
 
 /**
@@ -53,6 +55,9 @@ function syncVirtualControls(keys) {
   keys.KeyD = Boolean(pressed.KeyD);
   keys.ShiftLeft = Boolean(pressed.ShiftLeft);
   keys.ShiftRight = Boolean(pressed.ShiftRight);
+  keys.Backquote = Boolean(pressed.Backquote);
+  keys.Escape = Boolean(pressed.Escape);
+  keys.KeyP = Boolean(pressed.KeyP);
 }
 
 /**
@@ -77,6 +82,8 @@ export function createKeys() {
     ShiftLeft: false,
     ShiftRight: false,
     Backquote: false,
+    Escape: false,
+    KeyP: false,
     __pressed: /** @type {PressedKeys} */ (Object.fromEntries(ALLOWED_KEYS.map((code) => [code, false]))),
   };
   syncVirtualControls(keys);

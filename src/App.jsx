@@ -11,6 +11,7 @@ import { NOTES, noteToFrequency } from "./game/audio.js";
 import { createTitleThemePlayer } from "./game/audio/titleTheme.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
+import { applyFruitLifeCounter } from "./game/fruitLife.js";
 import { runSelfTests } from "./game/selfTests.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
 
@@ -708,6 +709,17 @@ export default function App() {
       return scored;
     }
 
+    function addFruitLife(amount) {
+      const { counter, livesAwarded } = applyFruitLifeCounter(body.fruitLifeCounter, amount);
+      body.fruitLifeCounter = counter;
+      if (livesAwarded <= 0) return;
+      body.lives += livesAwarded;
+      for (let i = 0; i < livesAwarded; i++) {
+        popText("BONUS ELEPHANT!", body.x, body.y + 3.4, body.z, "#b7ffb7");
+        playTone("life");
+      }
+    }
+
     function resize() {
       if (!mount || disposed) return;
       renderer.setSize(mount.clientWidth, Math.max(1, mount.clientHeight));
@@ -973,16 +985,10 @@ export default function App() {
           item.mesh.visible = false;
           if (item.type === "fruit") {
             body.fruit += 1;
-            body.fruitLifeCounter += 1;
+            addFruitLife(1);
             const pts = collectScore(5);
             burst(item.x, item.y, item.z, "#ffd34a", 4, 0.2);
             playTone("fruit");
-            if (body.fruitLifeCounter >= 100) {
-              body.lives += 1;
-              body.fruitLifeCounter = 0;
-              popText("BONUS ELEPHANT!", body.x, body.y + 3.4, body.z, "#b7ffb7");
-              playTone("life");
-            }
           } else {
             body.health = Math.min(100, body.health + 25);
             burst(item.x, item.y, item.z, "#4ade80", 10, 0.22);
@@ -1027,7 +1033,7 @@ export default function App() {
           col.active = false;
           col.mesh.visible = false;
           const pts = collectScore(50);
-          body.fruitLifeCounter = Math.min(99, body.fruitLifeCounter + 20);
+          addFruitLife(20);
           burst(col.x, col.y, col.z, "#f5a623", 16, 0.28);
           burst(col.x, col.y + 1, col.z, "#fff8e7", 8, 0.18);
           popText(`GOLDEN PINEAPPLE! +${pts}`, col.x, col.y + 2.4, col.z, "#f5a623");

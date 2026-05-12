@@ -19,7 +19,7 @@ import {
 } from "./game/collisions.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
-import { aabb, clamp, lerp } from "./game/math.js";
+import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { NOTES, noteToFrequency } from "./game/audio.js";
 import { createTitleThemePlayer } from "./game/audio/titleTheme.js";
 import { makeMaterial } from "./game/rendering/materials.js";
@@ -41,6 +41,7 @@ import { runSelfTests } from "./game/selfTests.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
 
 const nl = String.fromCharCode(10);
+const JUNGLE_LAYOUT_SEED = 0x5eed2026;
 
 function formatElapsed(elapsedMs) {
   const elapsed = Math.floor(elapsedMs / 1000);
@@ -404,33 +405,35 @@ export default function App() {
     scene.add(treeGroup);
     const trunkMat = makeMaterial("#5d371d");
     const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c"), makeMaterial("#0f5b33")];
+    const jungleRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
     for (let z = 16; z > -824; z -= 8) {
       [-1, 1].forEach((side) => {
-        const jitterZ = z + Math.random() * 5 - 2.5;
-        const nearTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, Math.random, 0.95 + Math.random() * 0.35);
-        nearTree.position.set(worldX(side * (7.1 + Math.random() * 3.1), jitterZ), 0, jitterZ);
+        const jitterZ = z + jungleRng() * 5 - 2.5;
+        const nearTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 0.95 + jungleRng() * 0.35);
+        nearTree.position.set(worldX(side * (7.1 + jungleRng() * 3.1), jitterZ), 0, jitterZ);
         treeGroup.add(nearTree);
 
-        const backTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, Math.random, 0.82 + Math.random() * 0.5, false);
-        backTree.position.set(worldX(side * (12.2 + Math.random() * 6.4), jitterZ - 2 + Math.random() * 4), 0, jitterZ - 2 + Math.random() * 4);
+        const backTreeZ = jitterZ - 2 + jungleRng() * 4;
+        const backTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 0.82 + jungleRng() * 0.5, false);
+        backTree.position.set(worldX(side * (12.2 + jungleRng() * 6.4), backTreeZ), 0, backTreeZ);
         treeGroup.add(backTree);
 
-        const bush = makeLowPolyBush(leafMats, sharedTreeGeometries, Math.random, 0.9 + Math.random() * 0.55);
-        bush.position.set(worldX(side * (6.45 + Math.random() * 2.0), jitterZ + 1.4), 0.02, jitterZ + 1.4);
+        const bush = makeLowPolyBush(leafMats, sharedTreeGeometries, jungleRng, 0.9 + jungleRng() * 0.55);
+        bush.position.set(worldX(side * (6.45 + jungleRng() * 2.0), jitterZ + 1.4), 0.02, jitterZ + 1.4);
         treeGroup.add(bush);
 
         if (Math.abs(z % 24) < 0.1) {
-          const foregroundTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, Math.random, 1.55 + Math.random() * 0.35);
-          foregroundTree.position.set(worldX(side * (8.8 + Math.random() * 2.5), jitterZ), 0, jitterZ);
+          const foregroundTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 1.55 + jungleRng() * 0.35);
+          foregroundTree.position.set(worldX(side * (8.8 + jungleRng() * 2.5), jitterZ), 0, jitterZ);
           treeGroup.add(foregroundTree);
         }
 
         if (Math.abs(z % 32) < 0.1) {
-          const canopyRadius = 2.0 + Math.random() * 1.2;
-          const canopy = new THREE.Mesh(sharedGeometries.canopy, leafMats[Math.floor(Math.random() * leafMats.length)]);
-          canopy.position.set(worldX(side * (5.9 + Math.random() * 2.8), jitterZ), 7.0 + Math.random() * 1.8, jitterZ);
+          const canopyRadius = 2.0 + jungleRng() * 1.2;
+          const canopy = new THREE.Mesh(sharedGeometries.canopy, leafMats[Math.floor(jungleRng() * leafMats.length)]);
+          canopy.position.set(worldX(side * (5.9 + jungleRng() * 2.8), jitterZ), 7.0 + jungleRng() * 1.8, jitterZ);
           canopy.scale.set(canopyRadius * 1.25, canopyRadius * 0.62, canopyRadius * 0.9);
-          canopy.rotation.y = Math.random() * Math.PI;
+          canopy.rotation.y = jungleRng() * Math.PI;
           canopy.castShadow = true;
           treeGroup.add(canopy);
         }

@@ -48,7 +48,7 @@ export function runSelfTests() {
   assert("track has visible left-right bends", maxCenter - minCenter > 12);
   assert("track bends stay readable", maxReadableAngle < 0.35);
 
-  assert("level finish plane matches gate", LEVEL.finish.z === LEVEL.gate.z && LEVEL.finish.z === CONFIG.gateZ);
+  assert("level finish plane matches configured finish line", LEVEL.finish.z === CONFIG.finishLineZ && CONFIG.finishLineZ === CONFIG.gateZ);
   assert("level finish failsafe is beyond the gate", LEVEL.finish.failSafeZ < LEVEL.finish.z);
 
   const representativeBranch = LEVEL.branches.find((branch) => branch.z === -182);

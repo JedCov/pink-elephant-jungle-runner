@@ -53,7 +53,7 @@ export function buildLevel() {
     enemies,
     collectibles,
     gate: { z: CONFIG.gateZ },
-    finish: { z: CONFIG.gateZ, failSafeZ: CONFIG.endOfCourseZ },
+    finish: { z: CONFIG.finishLineZ, failSafeZ: CONFIG.endOfCourseZ },
   };
 }
 

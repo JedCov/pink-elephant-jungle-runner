@@ -86,7 +86,7 @@ export const CAMERA_FEEDBACK = {
   fovSnapEpsilon: 0.01,
   fovLerp: 0.04,
   hurtShake: 0.42,
-  chargeShake: 0.07,
+  chargeShake: 0.045,
   chargeDistanceBoost: 2,
   lookAheadBase: 26,
   lookAheadChargeBoost: 8,

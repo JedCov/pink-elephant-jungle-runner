@@ -118,8 +118,11 @@ export function handleCrocCollision({ canRetreat = false }) {
   return { hurt: !canRetreat, blocked: !canRetreat, croc: true };
 }
 
-export function handleGateCollision({ playing = true, complete = false, nextZ, finishZ, failSafeZ }) {
-  return Boolean(playing && !complete && (nextZ <= finishZ || nextZ <= failSafeZ));
+export function handleGateCollision({ playing = true, complete = false, currentZ = Infinity, nextZ, finishZ, failSafeZ }) {
+  if (!playing || complete) return false;
+  const crossedGatePlane = currentZ > finishZ && nextZ <= finishZ;
+  const crossedFailSafe = currentZ > failSafeZ && nextZ <= failSafeZ;
+  return crossedGatePlane || crossedFailSafe;
 }
 
 export const COLLISION_HANDLERS = {

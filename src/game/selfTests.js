@@ -189,6 +189,15 @@ export function runSelfTests() {
     "branch challenge repeats at expected z sections",
     [-148, -393, -638].every((z) => LEVEL.branches.some((branch) => branch.z === z)),
   );
+  assert(
+    "slide fruit appears before each branch timing window",
+    LEVEL.branches.every((branch) => LEVEL.fruits.some((fruit) => (
+      fruit.section === "slide branch"
+        && fruit.z > branch.z
+        && fruit.z - branch.z <= 24
+        && Math.abs(fruit.localX - branch.localX) < 0.001
+    ))),
+  );
 
   const representativeCrate = LEVEL.crates[0];
   assert("level has at least one smash crate", Boolean(representativeCrate));
@@ -211,11 +220,12 @@ export function runSelfTests() {
   }
 
   assert(
-    "finish trigger behaviour completes at gate plane only while playing",
-    handleGateCollision({ playing: true, complete: false, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
-      && !handleGateCollision({ playing: false, complete: false, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
-      && !handleGateCollision({ playing: true, complete: true, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
-      && !handleGateCollision({ playing: true, complete: false, nextZ: LEVEL.finish.z + 1, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ }),
+    "finish trigger behaviour completes when crossing the gate plane only while playing",
+    handleGateCollision({ playing: true, complete: false, currentZ: LEVEL.finish.z + 1, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: false, complete: false, currentZ: LEVEL.finish.z + 1, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: true, complete: true, currentZ: LEVEL.finish.z + 1, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: true, complete: false, currentZ: LEVEL.finish.z - 1, nextZ: LEVEL.finish.z - 2, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: true, complete: false, currentZ: LEVEL.finish.z + 2, nextZ: LEVEL.finish.z + 1, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ }),
   );
 
   const promptCueAppearsBefore = (cue, targetZ) => {

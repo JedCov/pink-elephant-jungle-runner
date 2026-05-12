@@ -155,6 +155,21 @@ function formatElapsed(elapsedMs) {
 
 const INITIALS_LENGTH = 3;
 
+function SelfTestStatus({ summaryRef }) {
+  const [summary, setSummary] = useState(() => summaryRef.current);
+
+  useEffect(() => {
+    const results = runSelfTests();
+    const passCount = results.filter((r) => r.pass).length;
+    const nextSummary = `${passCount}/${results.length} self-tests passed`;
+    summaryRef.current = nextSummary;
+    setSummary(nextSummary);
+    if (passCount !== results.length) console.warn("Pink Elephant self-tests failed", results);
+  }, [summaryRef]);
+
+  return <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{summary}</div>;
+}
+
 function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
   const vertices = [];
   const uvs = [];
@@ -240,7 +255,6 @@ export default function App() {
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
   const [sceneError, setSceneError] = useState(null);
-  const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
   const [leaderboardEntries, setLeaderboardEntries] = useState(loadLeaderboardEntries);
@@ -341,15 +355,6 @@ export default function App() {
       window.removeEventListener("keydown", beginTitleThemeFromGesture);
       audioManagerRef.current?.dispose();
     };
-  }, []);
-
-  useEffect(() => {
-    const results = runSelfTests();
-    const passCount = results.filter((r) => r.pass).length;
-    const summary = `${passCount}/${results.length} self-tests passed`;
-    testSummaryRef.current = summary;
-    setTestSummary(summary);
-    if (passCount !== results.length) console.warn("Pink Elephant self-tests failed", results);
   }, []);
 
   useEffect(() => {
@@ -1076,9 +1081,18 @@ export default function App() {
 
     const body = createPlayerBody();
 
-    function snapshotResults() {
+    function snapshotResults(overrides = {}) {
       const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
-      return { fruit: body.fruit, crates: body.crates, score: body.score, lives: body.lives, elapsedMs };
+      const z = overrides.z ?? body.z;
+      return {
+        fruit: body.fruit,
+        fruitLifeCounter: body.fruitLifeCounter,
+        crates: body.crates,
+        score: body.score,
+        lives: body.lives,
+        elapsedMs,
+        distance: Math.abs(Math.min(0, z)),
+      };
     }
 
     function resetTransientEffects() {
@@ -1267,7 +1281,7 @@ export default function App() {
 
     function completeLevel(popZ = body.z) {
       if (completeRef.current) return;
-      const results = snapshotResults();
+      const results = snapshotResults({ z: popZ });
       body.completed = true;
       completeRef.current = true;
       body.speed = 0;
@@ -1529,9 +1543,13 @@ export default function App() {
         }
       }
 
-      if (handleGateCollision({ playing, complete: completeRef.current, nextZ: nz, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })) {
+      if (handleGateCollision({ playing, complete: completeRef.current, currentZ: body.z, nextZ: nz, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })) {
         nz = LEVEL.finish.z;
         nx = worldX(nextLocalX, nz);
+        body.localX = nextLocalX;
+        body.x = nx;
+        body.y = ny;
+        body.z = nz;
         completeLevel(nz);
         blocked = false;
       }
@@ -1542,6 +1560,7 @@ export default function App() {
         if (aabb(pBox, radiusBox(col, radiusAabb))) {
           col.active = false;
           col.mesh.visible = false;
+          body.fruit += SCORING.pineappleFruitLifeAmount;
           const pts = collectScore(SCORING.pineapplePoints);
           addFruitLife(SCORING.pineappleFruitLifeAmount);
           burst(col.x, col.y, col.z, "#f5a623", PARTICLES.pineappleBurstCount, 0.28);
@@ -1971,7 +1990,9 @@ export default function App() {
         }
         if (value.isTexture && typeof value.dispose === "function") {
           seenTextures.add(value);
+          return;
         }
+        if (value.value && value.value !== value) collectTexture(value.value);
       };
 
       const collectMaterial = (material) => {
@@ -1983,20 +2004,27 @@ export default function App() {
         if (seenMaterials.has(material)) return;
         seenMaterials.add(material);
         Object.values(material).forEach(collectTexture);
+        if (material.uniforms) Object.values(material.uniforms).forEach(collectTexture);
       };
 
-      scene.traverse((object) => {
-        if (object.isMesh && object.geometry && typeof object.geometry.dispose === "function") {
+      const collectObjectResources = (object) => {
+        if (object.geometry && typeof object.geometry.dispose === "function") {
           seenGeometries.add(object.geometry);
         }
         collectMaterial(object.material);
-      });
+      };
+
+      collectTexture(scene.background);
+      collectTexture(scene.environment);
+      scene.traverse(collectObjectResources);
 
       seenGeometries.forEach((geometry) => geometry.dispose());
       seenMaterials.forEach((material) => material.dispose?.());
       seenTextures.forEach((texture) => texture.dispose());
+      renderer.renderLists?.dispose?.();
       renderer.dispose();
       renderer.forceContextLoss();
+      scene.clear();
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
       audioManagerRef.current?.dispose();
     };
@@ -2303,7 +2331,7 @@ export default function App() {
             <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
               Advanced moves appear as trail prompts just before crates and monkey patrols.
             </div>
-            <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{testSummary}</div>
+            <SelfTestStatus summaryRef={testSummaryRef} />
             {renderLeaderboardPanel("#f9a8d4")}
           </div>
         </section>
@@ -2320,12 +2348,14 @@ export default function App() {
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-amber-50/70">
               The herd made it through. The jungle is yours.
             </p>
-            <div className="mt-5 flex justify-center gap-6 text-sm font-black text-amber-100">
-              <span>🍋 <span>{finalResults?.fruit ?? 0}</span></span>
-              <span>📦 <span>{finalResults?.crates ?? 0}</span></span>
-              <span>⭐ <span>{finalResults?.score ?? 0}</span></span>
-              <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
-              <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
+            <div className="mt-5 grid grid-cols-2 gap-3 text-left text-sm font-black text-amber-100 sm:grid-cols-3">
+              <span className="rounded-2xl bg-white/5 px-3 py-2">🍋 Fruit <span>{finalResults?.fruit ?? 0}</span></span>
+              <span className="rounded-2xl bg-white/5 px-3 py-2">🍍 Bonus <span>{finalResults?.fruitLifeCounter ?? 0}</span>/100</span>
+              <span className="rounded-2xl bg-white/5 px-3 py-2">📦 Crates <span>{finalResults?.crates ?? 0}</span></span>
+              <span className="rounded-2xl bg-white/5 px-3 py-2">⭐ Score <span>{finalResults?.score ?? 0}</span></span>
+              <span className="rounded-2xl bg-white/5 px-3 py-2">🐘 Lives <span>{finalResults?.lives ?? 0}</span></span>
+              <span className="rounded-2xl bg-white/5 px-3 py-2">⏱ Time <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
+              <span className="rounded-2xl bg-white/5 px-3 py-2 sm:col-span-3">🌿 Distance <span>{Math.round(finalResults?.distance ?? 0)}</span>m</span>
             </div>
             {renderLeaderboardPanel("#fde68a")}
             <button onClick={startDemo}

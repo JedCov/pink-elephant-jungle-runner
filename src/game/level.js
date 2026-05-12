@@ -22,7 +22,8 @@ export function buildLevel() {
     addFruitLine(fruits, o - 174, o - 190, 5 + index, () => 0, () => 0.88);
     addFruitLine(fruits, o - 204, o - 214, 4 + index, (t) => -1 + t * 2, () => 1.05);
     logs.push({ localX: index % 2 === 0 ? 0 : -0.6, z: o - 120, width: 10.5 - index * 0.45, height: 1.15, depth: 1.25 });
-    branches.push({ localX: index % 2 === 0 ? 0 : 0.8, z: o - 182, width: 12.25 - index * 0.3, height: 0.75, depth: 1.35, yOffset: 2.8 });
+    // Low enough for a standing elephant to clip, high enough for a belly-slide to clear.
+    branches.push({ localX: index % 2 === 0 ? 0 : 0.8, z: o - 182, width: 12.25 - index * 0.3, height: 0.75, depth: 1.35, yOffset: 1.95 });
     crates.push({ localX: index % 2 === 0 ? 0 : 1.2, z: o - 206, width: 2.15, height: 2.15, depth: 2.15 });
     if (index > 0) crates.push({ localX: index % 2 === 0 ? -2.65 : 2.65, z: o - 216, width: 2.15, height: 2.15, depth: 2.15 });
     rivers.push({

@@ -1,4 +1,5 @@
 import { aabb, clamp, lerp } from "./math.js";
+import { branchHitsPlayer, obstacleBox, playerBox } from "./collision.js";
 import { createKeys, setKeyState } from "./input.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
@@ -49,6 +50,42 @@ export function runSelfTests() {
 
   assert("level finish plane matches gate", LEVEL.finish.z === LEVEL.gate.z && LEVEL.finish.z === CONFIG.gateZ);
   assert("level finish failsafe is beyond the gate", LEVEL.finish.failSafeZ < LEVEL.finish.z);
+
+  const representativeBranch = LEVEL.branches.find((branch) => branch.z === -182);
+  const representativeBranchPosition = worldPosition(representativeBranch.localX, representativeBranch.z);
+  const representativeBranchBox = obstacleBox({
+    x: representativeBranchPosition.x,
+    y: representativeBranch.yOffset,
+    z: representativeBranchPosition.z,
+    w: representativeBranch.width,
+    h: representativeBranch.height,
+    d: representativeBranch.depth,
+  });
+  const standingBranchPlayerBox = playerBox(
+    representativeBranchPosition.x,
+    CONFIG.playerSize / 2,
+    representativeBranchPosition.z,
+    false,
+  );
+  const slidingBranchPlayerBox = playerBox(
+    representativeBranchPosition.x,
+    CONFIG.playerSize / 2,
+    representativeBranchPosition.z,
+    true,
+  );
+
+  assert(
+    "standing player clips representative branch",
+    aabb(standingBranchPlayerBox, representativeBranchBox) && branchHitsPlayer(standingBranchPlayerBox, representativeBranchBox),
+  );
+  assert(
+    "sliding player box clears representative branch",
+    !aabb(slidingBranchPlayerBox, representativeBranchBox) && !branchHitsPlayer(slidingBranchPlayerBox, representativeBranchBox),
+  );
+  assert(
+    "branch challenge repeats at expected z sections",
+    [-182, -427, -672].every((z) => LEVEL.branches.some((branch) => branch.z === z)),
+  );
 
   assert("title theme contains all 32 bars", TITLE_THEME.sequence.length === TITLE_THEME.stepsPerBar * 32);
   assert("title theme hook starts at bar 21", TITLE_THEME.sequence[20 * TITLE_THEME.stepsPerBar].bar === 21);

@@ -36,11 +36,34 @@ import {
   updatePlayerSteering,
 } from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
+import { addLeaderboardEntry, rankLeaderboardEntries } from "./game/leaderboard.js";
 import { runSelfTests } from "./game/selfTests.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
 
 const nl = String.fromCharCode(10);
 const JUNGLE_LAYOUT_SEED = 0x5eed2026;
+
+const LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard";
+const DEFAULT_LEADERBOARD_INITIALS = "PEJ";
+
+function loadLeaderboardEntries() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    return rankLeaderboardEntries(JSON.parse(window.localStorage.getItem(LEADERBOARD_STORAGE_KEY) || "[]"));
+  } catch {
+    return [];
+  }
+}
+
+function saveLeaderboardEntries(entries) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
+}
+
+function formatLeaderboardDate(date) {
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(date));
+}
 
 function formatElapsed(elapsedMs) {
   const elapsed = Math.floor(elapsedMs / 1000);
@@ -137,6 +160,7 @@ export default function App() {
   const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
+  const [leaderboardEntries, setLeaderboardEntries] = useState(loadLeaderboardEntries);
 
   const ui = {
     health: useRef(null),
@@ -173,6 +197,19 @@ export default function App() {
 
   function playTone(type, atTime = null) {
     audioManagerRef.current?.playTone(type, atTime);
+  }
+
+  function recordLeaderboardResult(results) {
+    setLeaderboardEntries((entries) => {
+      const nextEntries = addLeaderboardEntry(entries, {
+        initials: DEFAULT_LEADERBOARD_INITIALS,
+        score: results.score,
+        elapsedMs: results.elapsedMs,
+        date: new Date().toISOString(),
+      });
+      saveLeaderboardEntries(nextEntries);
+      return nextEntries;
+    });
   }
 
   useEffect(() => {
@@ -1066,7 +1103,9 @@ export default function App() {
       playTone("hurt");
       if (body.lives <= 0 && !gameOverRef.current) {
         gameOverRef.current = true;
-        setFinalResults(snapshotResults());
+        const results = snapshotResults();
+        recordLeaderboardResult(results);
+        setFinalResults(results);
         setGameOver(true);
       }
     }
@@ -1090,6 +1129,7 @@ export default function App() {
       body.speed = 0;
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
+      recordLeaderboardResult(results);
       setFinalResults(results);
       setComplete(true);
     }
@@ -2012,6 +2052,30 @@ export default function App() {
                   <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
                 </div>
               ))}
+            </div>
+            <div className="mt-5 rounded-2xl p-4 text-left"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xs font-black uppercase tracking-[0.28em] text-amber-100">Leaderboard</h3>
+                <span className="text-[10px] font-bold text-emerald-100/60">Ranked by highest score; faster time breaks ties.</span>
+              </div>
+              <div className="mt-3 space-y-1 text-xs text-amber-50/75">
+                {leaderboardEntries.length === 0 ? (
+                  <div className="rounded-xl px-3 py-2 text-center text-amber-50/45"
+                    style={{ background: "rgba(0,0,0,0.14)" }}>
+                    Finish a trail to post the first herd score.
+                  </div>
+                ) : leaderboardEntries.slice(0, 5).map((entry, index) => (
+                  <div key={`${entry.date}-${index}`} className="grid grid-cols-[2rem_3rem_1fr_4rem_3rem] items-center gap-2 rounded-xl px-3 py-2"
+                    style={{ background: "rgba(0,0,0,0.14)" }}>
+                    <span className="font-black text-pink-200">#{index + 1}</span>
+                    <span className="font-black text-amber-200">{entry.initials}</span>
+                    <span className="font-black text-amber-50">{entry.score}</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatElapsed(entry.elapsedMs)}</span>
+                    <span className="text-[10px] text-amber-50/40">{formatLeaderboardDate(entry.date)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{testSummary}</div>
           </div>

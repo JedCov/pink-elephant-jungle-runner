@@ -645,6 +645,32 @@ export default function App() {
     bodyMesh.position.y = 1.02; bodyMesh.castShadow = true;
     player.add(bodyMesh);
 
+    const legGeo = new THREE.BoxGeometry(0.46, 0.82, 0.5);
+    const legAnchors = [
+      [-0.86, 0.38, -0.86, 0],
+      [0.86, 0.38, -0.86, Math.PI],
+      [-0.86, 0.38, 1.04, Math.PI],
+      [0.86, 0.38, 1.04, 0],
+    ];
+    const legs = legAnchors.map(([x, y, z, phase]) => {
+      const leg = new THREE.Mesh(legGeo, pink);
+      leg.position.set(x, y, z);
+      leg.castShadow = true;
+      player.add(leg);
+      return { mesh: leg, baseX: x, baseY: y, baseZ: z, phase };
+    });
+
+    const tail = new THREE.Group();
+    tail.position.set(0, 1.28, 1.54);
+    const tailMesh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.72), pink);
+    tailMesh.position.z = 0.28;
+    tailMesh.castShadow = true;
+    const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.24), innerEar);
+    tailTip.position.z = 0.72;
+    tailTip.castShadow = true;
+    tail.add(tailMesh, tailTip);
+    player.add(tail);
+
     const head = new THREE.Group();
     head.position.set(0, 1.88, -1.65);
     player.add(head);
@@ -674,6 +700,16 @@ export default function App() {
     eyeL.position.set(-0.38, 0.23, -0.76);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.38;
     head.add(eyeL, eyeR);
+
+    const tuskGeo = new THREE.CylinderGeometry(0.055, 0.11, 0.78, 5);
+    const tuskL = new THREE.Mesh(tuskGeo, innerEar);
+    const tuskR = tuskL.clone();
+    tuskL.position.set(-0.34, -0.42, -0.82);
+    tuskR.position.set(0.34, -0.42, -0.82);
+    tuskL.rotation.x = tuskR.rotation.x = Math.PI / 2;
+    tuskL.rotation.z = 0.18; tuskR.rotation.z = -0.18;
+    tuskL.castShadow = true; tuskR.castShadow = true;
+    head.add(tuskL, tuskR);
 
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.68, 32), new THREE.MeshBasicMaterial({ color: "#000000", transparent: true, opacity: 0.38, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
@@ -1254,6 +1290,16 @@ export default function App() {
 
       bodyMesh.scale.set(sx, sy, sz);
       head.scale.set(sx, sy, sz);
+      const legStride = body.grounded && Math.abs(body.speed) > 0.1 && !sliding ? Math.min(1, Math.abs(body.speed) / MOVEMENT.maxSpeed + 0.25) : 0;
+      const legCycle = t * (6.5 + Math.abs(body.speed) * 0.72);
+      legs.forEach((leg) => {
+        const step = Math.sin(legCycle + leg.phase) * legStride;
+        const lift = Math.max(0, step) * 0.12;
+        leg.mesh.position.set(leg.baseX, leg.baseY + lift - (1 - sy) * 0.12, leg.baseZ + step * 0.12);
+        leg.mesh.scale.set(1 - Math.abs(step) * 0.05, 1 + lift * 0.22, 1 + Math.abs(step) * 0.08);
+      });
+      tail.rotation.x = -0.28 + Math.sin(t * 7 + body.speed * 0.25) * (0.08 + charge * 0.06);
+      tail.rotation.y = Math.sin(t * 5.6 + body.speed * 0.2) * (0.12 + charge * 0.08);
       trunk.rotation.x = body.smashActionTimer > 0 ? -0.85 : sliding ? 0.75 : !body.grounded ? (body.yVelocity > 0 ? -0.38 : 0.34) : Math.sin(t * 10 + body.speed * 0.3) * 0.18 + charge * 0.16;
       trunk.rotation.y = body.spinTimer > 0 ? t * 18 : 0;
       earL.rotation.y = -0.34 + Math.sin(t * 8 + body.speed * 0.35) * (0.1 + charge * 0.15);

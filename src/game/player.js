@@ -1,4 +1,4 @@
-import { CONFIG } from "./config.js";
+import { CONFIG, MOVEMENT } from "./config.js";
 import { clamp, lerp } from "./math.js";
 import { trackAngle, trackCenter } from "./track.js";
 
@@ -10,7 +10,7 @@ export function createPlayerBody(overrides = {}) {
     z: CONFIG.startZ,
     speed: 0,
     yVelocity: 0,
-    coyoteTimer: CONFIG.coyoteTime,
+    coyoteTimer: MOVEMENT.coyoteTime,
     jumpBufferTimer: 0,
     grounded: true,
     jumpHeld: false,
@@ -52,13 +52,13 @@ export function tickPlayerTimers(body, dt) {
     body.multiplier = 1;
     body.multiplierCombo = 0;
   }
-  if (body.grounded) body.coyoteTimer = CONFIG.coyoteTime;
+  if (body.grounded) body.coyoteTimer = MOVEMENT.coyoteTime;
   else body.coyoteTimer = Math.max(0, body.coyoteTimer - dt);
   return body;
 }
 
 export function getPlayerInputIntent(body, keys, playing) {
-  const wantsSlide = playing && keys.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > 2 && body.hurtTimer === 0;
+  const wantsSlide = playing && keys.ArrowDown && body.grounded && body.slideTimer <= 0 && body.speed > MOVEMENT.slideStartMinSpeed && body.hurtTimer === 0;
   const wantsReverse = playing && keys.ArrowDown && body.grounded && !wantsSlide;
   const wantsForward = playing && keys.ArrowUp && !wantsReverse;
   return { wantsSlide, wantsReverse, wantsForward };
@@ -67,18 +67,18 @@ export function getPlayerInputIntent(body, keys, playing) {
 export function updatePlayerSpeed(body, dt, playing, intent) {
   if (playing && (body.hurtTimer === 0 || intent.wantsReverse)) {
     if (intent.wantsForward) {
-      body.speed = Math.min(CONFIG.maxSpeed, body.speed + CONFIG.acceleration * dt);
+      body.speed = Math.min(MOVEMENT.maxSpeed, body.speed + MOVEMENT.acceleration * dt);
     } else if (intent.wantsReverse) {
-      body.speed = Math.max(-CONFIG.reverseMaxSpeed, body.speed - CONFIG.reverseAcceleration * dt);
+      body.speed = Math.max(-MOVEMENT.reverseMaxSpeed, body.speed - MOVEMENT.reverseAcceleration * dt);
     } else {
-      body.speed *= Math.exp(-CONFIG.friction * dt);
-      const idleStep = CONFIG.idleDeceleration * dt;
+      body.speed *= Math.exp(-MOVEMENT.friction * dt);
+      const idleStep = MOVEMENT.idleDeceleration * dt;
       body.speed = Math.abs(body.speed) <= idleStep ? 0 : body.speed - Math.sign(body.speed) * idleStep;
     }
-    if (Math.abs(body.speed) < CONFIG.minSpeed) body.speed = 0;
+    if (Math.abs(body.speed) < MOVEMENT.minSpeed) body.speed = 0;
   } else if (playing) {
-    body.speed *= Math.exp(-CONFIG.friction * dt);
-    if (Math.abs(body.speed) < CONFIG.minSpeed) body.speed = 0;
+    body.speed *= Math.exp(-MOVEMENT.friction * dt);
+    if (Math.abs(body.speed) < MOVEMENT.minSpeed) body.speed = 0;
   } else {
     body.speed = 0;
   }
@@ -89,21 +89,21 @@ export function updatePlayerSteering(body, keys, dt, playing, z) {
   let nextLocalX = body.localX;
   if (playing && body.hurtTimer === 0) {
     const steer = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
-    nextLocalX = clamp(nextLocalX + steer * CONFIG.steerSpeed * dt, -CONFIG.corridorHalfWidth, CONFIG.corridorHalfWidth);
-    body.yaw = lerp(body.yaw, steer * -0.22 + trackAngle(z), 1 - Math.exp(-CONFIG.turnDamping * dt));
+    nextLocalX = clamp(nextLocalX + steer * MOVEMENT.steerSpeed * dt, -CONFIG.corridorHalfWidth, CONFIG.corridorHalfWidth);
+    body.yaw = lerp(body.yaw, steer * MOVEMENT.steeringYawLean + trackAngle(z), 1 - Math.exp(-MOVEMENT.turnDamping * dt));
   }
   return nextLocalX;
 }
 
 export function startPlayerSlide(body) {
-  if (body.slideTimer > 0 || body.speed <= 2) return false;
-  body.slideTimer = CONFIG.slideDuration;
+  if (body.slideTimer > 0 || body.speed <= MOVEMENT.slideStartMinSpeed) return false;
+  body.slideTimer = MOVEMENT.slideDuration;
   body.bufferedSlide = false;
   return true;
 }
 
 export function startGroundJump(body) {
-  body.yVelocity = CONFIG.jumpVelocity;
+  body.yVelocity = MOVEMENT.jumpVelocity;
   body.grounded = false;
   body.coyoteTimer = 0;
   body.jumpBufferTimer = 0;
@@ -112,7 +112,7 @@ export function startGroundJump(body) {
 }
 
 export function startDoubleJump(body) {
-  body.yVelocity = CONFIG.doubleJumpVelocity;
+  body.yVelocity = MOVEMENT.doubleJumpVelocity;
   body.doubleUsed = true;
   body.jumpBufferTimer = 0;
   return "double";
@@ -122,7 +122,7 @@ export function triggerJumpOrDoubleJump(body, playing) {
   if (!playing || body.slideTimer > 0) return null;
   if (body.grounded || body.coyoteTimer > 0) return startGroundJump(body);
   if (!body.doubleUsed) return startDoubleJump(body);
-  body.jumpBufferTimer = CONFIG.jumpBufferTime;
+  body.jumpBufferTimer = MOVEMENT.jumpBufferTime;
   return "buffered";
 }
 
@@ -138,7 +138,7 @@ export function updateJumpAndSlideInput(body, keys, dt, playing) {
   }
   if (spaceDown && !body.spaceActionResolved && playing) {
     body.spaceHeldTimer += dt;
-    if (body.spaceHeldTimer >= CONFIG.slideHoldThreshold) {
+    if (body.spaceHeldTimer >= MOVEMENT.slideHoldThreshold) {
       body.spaceActionResolved = true;
       if (body.grounded) {
         if (startPlayerSlide(body)) events.push("slide");
@@ -163,8 +163,8 @@ export function updateJumpAndSlideInput(body, keys, dt, playing) {
 export function updatePlayerAir(body, y, dt) {
   if (body.grounded) return { y, landed: false, bufferedJump: false };
 
-  const gravityMultiplier = body.yVelocity < 0 ? CONFIG.fallGravityMultiplier : 1;
-  body.yVelocity += CONFIG.gravity * gravityMultiplier * dt;
+  const gravityMultiplier = body.yVelocity < 0 ? MOVEMENT.fallGravityMultiplier : 1;
+  body.yVelocity += MOVEMENT.gravity * gravityMultiplier * dt;
   let nextY = y + body.yVelocity * dt;
   const groundY = CONFIG.playerSize / 2;
   let landed = false;
@@ -174,7 +174,7 @@ export function updatePlayerAir(body, y, dt) {
     nextY = groundY;
     body.yVelocity = 0;
     body.grounded = true;
-    body.coyoteTimer = CONFIG.coyoteTime;
+    body.coyoteTimer = MOVEMENT.coyoteTime;
     body.doubleUsed = false;
     landed = true;
     if (body.jumpBufferTimer > 0 && body.slideTimer <= 0) {
@@ -189,14 +189,14 @@ export function updatePlayerAir(body, y, dt) {
 
 export function triggerPlayerSmash(body, playing) {
   if (!playing || body.smashActionTimer > 0) return false;
-  body.smashActionTimer = 0.18;
-  body.smashTimer = Math.max(body.smashTimer, 0.1);
+  body.smashActionTimer = MOVEMENT.smashActionDuration;
+  body.smashTimer = Math.max(body.smashTimer, MOVEMENT.smashFeedbackDuration);
   return true;
 }
 
 export function triggerPlayerSpin(body, playing) {
   if (!playing || body.spinTimer > 0) return false;
-  body.spinTimer = 0.55;
+  body.spinTimer = MOVEMENT.spinDuration;
   return true;
 }
 
@@ -208,7 +208,7 @@ export function selectPlayerStateLabel(body, charge) {
   if (body.smashTimer > 0) return "Trunk-Smash";
   if (body.slideTimer > 0) return "Belly-Slide";
   if (!body.grounded) return body.doubleUsed ? "BIG Bounce" : "Leap";
-  if (charge > 0.82) return "Mighty Charge";
-  if (body.speed > 0.5) return "Charging";
+  if (charge > MOVEMENT.mightyChargeThreshold) return "Mighty Charge";
+  if (body.speed > MOVEMENT.movingStateMinSpeed) return "Charging";
   return "Ready";
 }

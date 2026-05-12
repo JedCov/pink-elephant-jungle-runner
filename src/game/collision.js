@@ -1,9 +1,9 @@
-import { CONFIG } from "./config.js";
+import { COLLISION, CONFIG } from "./config.js";
 
 export function playerBox(nx, ny, nz, sliding = false) {
-  const hw = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-  const hh = sliding ? CONFIG.playerSize * 0.25 : (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-  const hd = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
+  const hw = (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
+  const hh = sliding ? CONFIG.playerSize * COLLISION.slidingHitboxHeightScale : (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
+  const hd = (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
   return { minX: nx - hw, maxX: nx + hw, minY: ny - hh, maxY: ny + hh, minZ: nz - hd, maxZ: nz + hd };
 }
 

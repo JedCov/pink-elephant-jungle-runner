@@ -20,8 +20,7 @@ import {
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
-import { NOTES, noteToFrequency } from "./game/audio.js";
-import { createTitleThemePlayer } from "./game/audio/titleTheme.js";
+import { createAudioManager } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import {
@@ -124,10 +123,9 @@ export default function App() {
   const completeRef = useRef(false);
   const gameOverRef = useRef(false);
   const debugRef = useRef(false);
-  const audioRef = useRef(null);
-  const titleThemeRef = useRef(null);
+  const audioManagerRef = useRef(null);
+  if (!audioManagerRef.current) audioManagerRef.current = createAudioManager();
   const resetGameRef = useRef(null);
-  const musicRef = useRef({ enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 });
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
 
@@ -162,57 +160,19 @@ export default function App() {
   };
 
   function startAudio() {
-    if (audioRef.current) return audioRef.current;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return null;
-    const ctx = new AudioContext();
-    audioRef.current = ctx;
-    if (ctx.state === "suspended") ctx.resume();
-    musicRef.current.enabled = true;
-    musicRef.current.nextNoteTime = ctx.currentTime + 0.08;
-    return ctx;
+    return audioManagerRef.current?.startAudio() ?? null;
   }
 
-
   function startTitleTheme() {
-    const ctx = startAudio();
-    if (!ctx || startedRef.current || completeRef.current || gameOverRef.current) return;
-    if (!titleThemeRef.current) titleThemeRef.current = createTitleThemePlayer(ctx);
-    titleThemeRef.current.start();
+    audioManagerRef.current?.startTitleTheme(!startedRef.current && !completeRef.current && !gameOverRef.current);
   }
 
   function stopTitleTheme(fadeSeconds = 0.22) {
-    titleThemeRef.current?.stop(fadeSeconds);
+    audioManagerRef.current?.stopTitleTheme(fadeSeconds);
   }
 
   function playTone(type, atTime = null) {
-    const ctx = audioRef.current;
-    if (!ctx) return;
-    const now = atTime ?? ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    const settings = {
-      jump:   [180, 340, 0.08, "sine",     0.08],
-      double: [360, 720, 0.09, "triangle", 0.09],
-      land:   [105,  70, 0.11, "sine",     0.10],
-      smash:  [ 90,  40, 0.16, "sawtooth", 0.14],
-      fruit:  [660, 990, 0.08, "triangle", 0.07],
-      heal:   [420, 760, 0.20, "sine",     0.08],
-      hurt:   [160,  80, 0.18, "square",   0.10],
-      gate:   [330, 880, 0.45, "triangle", 0.09],
-      life:   [420, 980, 0.35, "triangle", 0.10],
-      croc:   [ 70,  45, 0.18, "sawtooth", 0.11],
-      thump:  [ 62,  30, 0.16, "sine",     0.08],
-    }[type] || [250, 250, 0.1, "sine", 0.05];
-    osc.type = settings[3];
-    osc.frequency.setValueAtTime(settings[0], now);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(20, settings[1]), now + settings[2]);
-    gain.gain.setValueAtTime(settings[4], now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + settings[2]);
-    osc.start(now);
-    osc.stop(now + settings[2] + 0.03);
+    audioManagerRef.current?.playTone(type, atTime);
   }
 
   useEffect(() => {
@@ -225,8 +185,7 @@ export default function App() {
     return () => {
       window.removeEventListener("pointerdown", beginTitleThemeFromGesture);
       window.removeEventListener("keydown", beginTitleThemeFromGesture);
-      titleThemeRef.current?.dispose();
-      titleThemeRef.current = null;
+      audioManagerRef.current?.dispose();
     };
   }, []);
 
@@ -1001,8 +960,7 @@ export default function App() {
       hudRefresh.values.clear();
       hudRefresh.lastSpeedometerCharge = null;
       hudRefresh.nextLowAt = 0;
-      musicRef.current.nextNoteTime = audioRef.current ? audioRef.current.currentTime + 0.08 : 0;
-      musicRef.current.noteIndex = 0;
+      audioManagerRef.current?.resetGameplayMusic();
       stampedeRef.current.nextStepTime = 0;
       resetCameraShake();
       startedRef.current = start;
@@ -1211,32 +1169,16 @@ export default function App() {
     }
 
     function updateMusicAndStampede(charge) {
-      const ctx = audioRef.current;
-      if (!ctx || !musicRef.current.enabled || !startedRef.current || completeRef.current || gameOverRef.current) return;
-      musicRef.current.beatSeconds = lerp(0.26, 0.15, charge);
-      while (musicRef.current.nextNoteTime < ctx.currentTime + 0.1) {
-        const note = NOTES[musicRef.current.noteIndex % NOTES.length];
-        playTone("thump", musicRef.current.nextNoteTime);
-        if (musicRef.current.noteIndex % 2 === 0) {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = "triangle";
-          osc.frequency.setValueAtTime(noteToFrequency(note), musicRef.current.nextNoteTime);
-          gain.gain.setValueAtTime(0.025, musicRef.current.nextNoteTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, musicRef.current.nextNoteTime + 0.12);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(musicRef.current.nextNoteTime);
-          osc.stop(musicRef.current.nextNoteTime + 0.14);
-        }
-        musicRef.current.noteIndex += 1;
-        musicRef.current.nextNoteTime += musicRef.current.beatSeconds;
-      }
+      const isPlaying = startedRef.current && !completeRef.current && !gameOverRef.current;
+      audioManagerRef.current?.updateGameplayMusic({ charge, isPlaying });
+      if (!isPlaying) return;
+      const audioTime = audioManagerRef.current?.getCurrentTime() ?? 0;
+      if (!audioTime) return;
       if (charge > 0.58 && body.grounded && body.speed > 6) {
         const intensity = clamp((charge - 0.58) / 0.42, 0, 1);
         const interval = lerp(0.34, 0.13, intensity);
-        if (ctx.currentTime >= stampedeRef.current.nextStepTime) {
-          stampedeRef.current.nextStepTime = ctx.currentTime + interval;
+        if (audioTime >= stampedeRef.current.nextStepTime) {
+          stampedeRef.current.nextStepTime = audioTime + interval;
           playTone("thump");
           if (intensity > 0.5) burst(body.x, 0.18, body.z + 0.8, "#d6c399", 2, 0.22);
         }
@@ -1891,6 +1833,7 @@ export default function App() {
       renderer.dispose();
       renderer.forceContextLoss();
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
+      audioManagerRef.current?.dispose();
     };
   }, []);
 

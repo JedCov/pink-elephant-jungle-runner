@@ -1,0 +1,149 @@
+import { NOTES, noteToFrequency } from "../audio.js";
+import { createTitleThemePlayer } from "./titleTheme.js";
+import { lerp } from "../math.js";
+
+const TONE_SETTINGS = {
+  jump: [180, 340, 0.08, "sine", 0.08],
+  double: [360, 720, 0.09, "triangle", 0.09],
+  land: [105, 70, 0.11, "sine", 0.1],
+  smash: [90, 40, 0.16, "sawtooth", 0.14],
+  fruit: [660, 990, 0.08, "triangle", 0.07],
+  heal: [420, 760, 0.2, "sine", 0.08],
+  hurt: [160, 80, 0.18, "square", 0.1],
+  gate: [330, 880, 0.45, "triangle", 0.09],
+  life: [420, 980, 0.35, "triangle", 0.1],
+  croc: [70, 45, 0.18, "sawtooth", 0.11],
+  thump: [62, 30, 0.16, "sine", 0.08],
+};
+
+function getAudioContextConstructor() {
+  if (typeof window === "undefined") return null;
+  return window.AudioContext || window.webkitAudioContext || null;
+}
+
+export function createAudioManager() {
+  let ctx = null;
+  let master = null;
+  let titleTheme = null;
+  let disposed = false;
+  const music = { enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 };
+
+  function ensureContext() {
+    if (disposed) disposed = false;
+    if (ctx) {
+      if (ctx.state === "suspended") void ctx.resume();
+      return ctx;
+    }
+
+    const AudioContext = getAudioContextConstructor();
+    if (!AudioContext) return null;
+
+    ctx = new AudioContext();
+    master = ctx.createGain();
+    master.gain.setValueAtTime(0.78, ctx.currentTime);
+    master.connect(ctx.destination);
+    if (ctx.state === "suspended") void ctx.resume();
+    return ctx;
+  }
+
+  function startAudio() {
+    const audioContext = ensureContext();
+    if (!audioContext) return null;
+    music.enabled = true;
+    music.nextNoteTime = audioContext.currentTime + 0.08;
+    return audioContext;
+  }
+
+  function startTitleTheme(canStart = true) {
+    const audioContext = startAudio();
+    if (!audioContext || !canStart || !master) return;
+    if (!titleTheme) titleTheme = createTitleThemePlayer(audioContext, master);
+    titleTheme.start();
+  }
+
+  function stopTitleTheme(fadeSeconds = 0.22) {
+    titleTheme?.stop(fadeSeconds);
+  }
+
+  function resetGameplayMusic() {
+    music.nextNoteTime = ctx ? ctx.currentTime + 0.08 : 0;
+    music.noteIndex = 0;
+    music.beatSeconds = 0.2;
+  }
+
+  function playTone(type, atTime = null) {
+    if (!ctx || !master || disposed) return;
+    const now = atTime ?? ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(master);
+    const settings = TONE_SETTINGS[type] || [250, 250, 0.1, "sine", 0.05];
+    osc.type = settings[3];
+    osc.frequency.setValueAtTime(settings[0], now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, settings[1]), now + settings[2]);
+    gain.gain.setValueAtTime(settings[4], now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + settings[2]);
+    osc.start(now);
+    osc.stop(now + settings[2] + 0.03);
+  }
+
+  function updateGameplayMusic({ charge, isPlaying }) {
+    if (!ctx || !master || !music.enabled || !isPlaying || disposed) return;
+    music.beatSeconds = lerp(0.26, 0.15, charge);
+    while (music.nextNoteTime < ctx.currentTime + 0.1) {
+      const note = NOTES[music.noteIndex % NOTES.length];
+      playTone("thump", music.nextNoteTime);
+      if (music.noteIndex % 2 === 0) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(noteToFrequency(note), music.nextNoteTime);
+        gain.gain.setValueAtTime(0.025, music.nextNoteTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, music.nextNoteTime + 0.12);
+        osc.connect(gain);
+        gain.connect(master);
+        osc.start(music.nextNoteTime);
+        osc.stop(music.nextNoteTime + 0.14);
+      }
+      music.noteIndex += 1;
+      music.nextNoteTime += music.beatSeconds;
+    }
+  }
+
+  function getCurrentTime() {
+    return ctx?.currentTime ?? 0;
+  }
+
+  function dispose({ closeContext = true } = {}) {
+    disposed = true;
+    music.enabled = false;
+    titleTheme?.dispose();
+    titleTheme = null;
+    try {
+      master?.disconnect();
+    } catch {
+      // Already disconnected.
+    }
+    master = null;
+    const audioContext = ctx;
+    ctx = null;
+    if (!audioContext || audioContext.state === "closed") return;
+    if (closeContext && typeof audioContext.close === "function") {
+      void audioContext.close().catch(() => undefined);
+      return;
+    }
+    if (typeof audioContext.suspend === "function") void audioContext.suspend().catch(() => undefined);
+  }
+
+  return {
+    startAudio,
+    startTitleTheme,
+    stopTitleTheme,
+    playTone,
+    resetGameplayMusic,
+    updateGameplayMusic,
+    getCurrentTime,
+    dispose,
+  };
+}

@@ -309,6 +309,9 @@ export default function App() {
       monkeyEye: new THREE.SphereGeometry(0.28, 12, 12),
       monkeySpike: new THREE.ConeGeometry(0.14, 0.45, 5),
       pineapple: new THREE.TorusKnotGeometry(0.38, 0.12, 80, 14),
+      cueLeaf: new THREE.DodecahedronGeometry(1, 0),
+      cueRipple: new THREE.TorusGeometry(1, 0.035, 5, 14),
+      cueGlint: new THREE.OctahedronGeometry(0.18, 0),
     };
     const sharedTreeGeometries = {
       trunk: sharedGeometries.treeTrunk,
@@ -438,8 +441,95 @@ export default function App() {
     const crateBandMat = makeMaterial("#e2b156");
     const branchLimbMat = makeMaterial("#452817");
     const branchLeafMat = makeMaterial("#17713d");
+    const cueLeafShadowMat = makeMaterial("#0b1b11", { transparent: true, opacity: 0.46, roughness: 1 });
+    const cueMudMat = makeMaterial("#3f2616", { roughness: 1 });
+    const cueCratePlankMat = makeMaterial("#b77a3d", { roughness: 0.9 });
+    const cueRippleMat = makeMaterial("#9de7ff", { transparent: true, opacity: 0.68, roughness: 0.45, emissive: "#124d66", emissiveIntensity: 0.2 });
+    const cueEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2a1c", emissive: "#ff1200", emissiveIntensity: 2.8 });
+    const CUE_PREVIEW_DISTANCE = 5.8;
+
+    function createCueGroup(localX, z, distance = CUE_PREVIEW_DISTANCE) {
+      const cueZ = z + distance;
+      const pos = worldPosition(localX, cueZ);
+      const group = new THREE.Group();
+      group.position.set(pos.x, 0, pos.z);
+      group.rotation.y = trackAngle(cueZ);
+      scene.add(group);
+      return group;
+    }
+
+    function addLeafShadowCue(branch) {
+      const cue = createCueGroup(branch.localX, branch.z, 4.6);
+      [-0.78, -0.24, 0.34, 0.86].forEach((xOffset, index) => {
+        const leaf = new THREE.Mesh(sharedGeometries.cueLeaf, cueLeafShadowMat);
+        leaf.position.set(xOffset, 0.13 + index * 0.002, (index - 1.5) * 0.34);
+        leaf.scale.set(0.54 + index * 0.08, 0.025, 0.28 + (index % 2) * 0.08);
+        leaf.rotation.y = 0.45 + index * 0.8;
+        leaf.receiveShadow = true;
+        cue.add(leaf);
+      });
+    }
+
+    function addMudSkidCue(log) {
+      const cue = createCueGroup(log.localX, log.z, 5.2);
+      [-0.48, 0.48].forEach((xOffset, index) => {
+        const skid = new THREE.Mesh(sharedGeometries.unitBox, cueMudMat);
+        skid.position.set(xOffset, 0.125, index === 0 ? 0.18 : -0.18);
+        skid.scale.set(0.22, 0.035, 1.72);
+        skid.rotation.y = index === 0 ? 0.12 : -0.12;
+        skid.receiveShadow = true;
+        cue.add(skid);
+      });
+      const smear = new THREE.Mesh(sharedGeometries.unitBox, cueMudMat);
+      smear.position.set(0, 0.12, -0.08);
+      smear.scale.set(1.45, 0.026, 0.42);
+      smear.rotation.y = -0.08;
+      smear.receiveShadow = true;
+      cue.add(smear);
+    }
+
+    function addCratePlankCue(crate) {
+      const cue = createCueGroup(crate.localX, crate.z, 4.9);
+      [-0.58, 0, 0.58].forEach((xOffset, index) => {
+        const plank = new THREE.Mesh(sharedGeometries.unitBox, cueCratePlankMat);
+        plank.position.set(xOffset, 0.18 + index * 0.015, (index - 1) * 0.28);
+        plank.scale.set(0.82, 0.08, 0.22);
+        plank.rotation.y = [-0.55, 0.18, 0.62][index];
+        plank.castShadow = true;
+        plank.receiveShadow = true;
+        cue.add(plank);
+      });
+    }
+
+    function addRippleCue(river) {
+      const cue = createCueGroup(0, river.z, 6.4);
+      [1.15, 1.85, 2.55].forEach((radius, index) => {
+        const ripple = new THREE.Mesh(sharedGeometries.cueRipple, cueRippleMat);
+        ripple.position.set(0, 0.15 + index * 0.003, (index - 1) * 0.24);
+        ripple.scale.set(radius * 1.7, radius * 0.48, 1);
+        ripple.rotation.x = Math.PI / 2;
+        ripple.receiveShadow = true;
+        cue.add(ripple);
+      });
+    }
+
+    function addMonkeyEyeCue(enemy) {
+      const cue = createCueGroup(enemy.baseLocalX, enemy.z, 5.4);
+      [-0.24, 0.24].forEach((xOffset) => {
+        const glint = new THREE.Mesh(sharedGeometries.cueGlint, cueEyeMat);
+        glint.position.set(xOffset, 0.72, 0);
+        glint.scale.set(1.0, 0.55, 0.55);
+        cue.add(glint);
+      });
+      const glow = new THREE.PointLight("#ff1600", 0.75, 4);
+      glow.position.set(0, 0.72, 0.1);
+      cue.add(glow);
+    }
+
+    LEVEL.rivers.forEach(addRippleCue);
 
     LEVEL.logs.forEach((log) => {
+      addMudSkidCue(log);
       const posOnPath = worldPosition(log.localX, log.z);
       const mesh = new THREE.Mesh(sharedGeometries.unitBox, logMat);
       mesh.position.set(posOnPath.x, log.height / 2, posOnPath.z);
@@ -451,6 +541,7 @@ export default function App() {
     });
 
     LEVEL.crates.forEach((crate) => {
+      addCratePlankCue(crate);
       const posOnPath = worldPosition(crate.localX, crate.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, crate.height / 2, posOnPath.z);
@@ -467,6 +558,7 @@ export default function App() {
     });
 
     LEVEL.branches.forEach((branch) => {
+      addLeafShadowCue(branch);
       const posOnPath = worldPosition(branch.localX, branch.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, branch.yOffset, posOnPath.z);
@@ -488,6 +580,7 @@ export default function App() {
     const monkeyBodyMat = makeMaterial("#2a1f0e", { roughness: 0.55, metalness: 0.1 });
     const monkeyEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2200", emissive: "#ff2200", emissiveIntensity: 2.5 });
     LEVEL.enemies.forEach((en) => {
+      addMonkeyEyeCue(en);
       const group = new THREE.Group();
       const posOnPath = worldPosition(en.baseLocalX, en.z);
       group.position.set(posOnPath.x, 0.9, posOnPath.z);

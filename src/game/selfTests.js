@@ -1,5 +1,15 @@
 import { aabb, clamp, lerp } from "./math.js";
-import { branchHitsPlayer, obstacleBox, playerBox } from "./collision.js";
+import {
+  branchHitsPlayer,
+  handleBranchCollision,
+  handleCrateCollision,
+  handleGateCollision,
+  handleLogCollision,
+  makeBoxCollider,
+  obstacleBox,
+  playerBox,
+  smashBox,
+} from "./collisions.js";
 import { applyFruitLifeCounter } from "./fruitLife.js";
 import { createKeys, setKeyState } from "./input.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
@@ -60,6 +70,34 @@ export function runSelfTests() {
   assert("level finish plane matches configured finish line", LEVEL.finish.z === CONFIG.finishLineZ && CONFIG.finishLineZ === CONFIG.gateZ);
   assert("level finish failsafe is beyond the gate", LEVEL.finish.failSafeZ < LEVEL.finish.z);
 
+  const representativeLog = LEVEL.logs.find((log) => log.z === -120);
+  const representativeLogPosition = worldPosition(representativeLog.localX, representativeLog.z);
+  const representativeLogBox = obstacleBox({
+    x: representativeLogPosition.x,
+    y: representativeLog.height / 2,
+    z: representativeLogPosition.z,
+    w: representativeLog.width,
+    h: representativeLog.height,
+    d: representativeLog.depth,
+  });
+  const jumpingLogPlayerBox = playerBox(
+    representativeLogPosition.x,
+    representativeLog.height - 0.17 + (CONFIG.playerSize * CONFIG.hitboxScale) / 2,
+    representativeLogPosition.z,
+    false,
+  );
+  const logResult = handleLogCollision({ collisionBox: jumpingLogPlayerBox, obstacleAabb: representativeLogBox });
+  assert(
+    "log jump clearance avoids damage while overlapping horizontally",
+    aabb(jumpingLogPlayerBox, representativeLogBox) && !logResult.hurt && !logResult.blocked,
+  );
+
+  const directBox = makeBoxCollider({ x: 4, y: 5, z: 6, w: 2, h: 4, d: 6 });
+  assert(
+    "makeBoxCollider expands center dimensions into AABB extents",
+    directBox.minX === 3 && directBox.maxX === 5 && directBox.minY === 3 && directBox.maxY === 7 && directBox.minZ === 3 && directBox.maxZ === 9,
+  );
+
   const representativeBranch = LEVEL.branches.find((branch) => branch.z === -182);
   const representativeBranchPosition = worldPosition(representativeBranch.localX, representativeBranch.z);
   const representativeBranchBox = obstacleBox({
@@ -91,9 +129,39 @@ export function runSelfTests() {
     "sliding player box clears representative branch",
     !aabb(slidingBranchPlayerBox, representativeBranchBox) && !branchHitsPlayer(slidingBranchPlayerBox, representativeBranchBox),
   );
+  const branchSlideResult = handleBranchCollision({ collisionBox: slidingBranchPlayerBox, obstacleAabb: representativeBranchBox });
+  assert(
+    "branch slide clearance handler avoids damage",
+    !branchSlideResult.hurt && !branchSlideResult.blocked,
+  );
   assert(
     "branch challenge repeats at expected z sections",
     [-182, -427, -672].every((z) => LEVEL.branches.some((branch) => branch.z === z)),
+  );
+
+  const representativeCrate = LEVEL.crates.find((crate) => crate.z === -206);
+  const representativeCratePosition = worldPosition(representativeCrate.localX, representativeCrate.z);
+  const representativeCrateBox = obstacleBox({
+    x: representativeCratePosition.x,
+    y: representativeCrate.height / 2,
+    z: representativeCratePosition.z,
+    w: representativeCrate.width,
+    h: representativeCrate.height,
+    d: representativeCrate.depth,
+  });
+  const crateSmashRange = smashBox(representativeCratePosition.x, CONFIG.playerSize / 2, representativeCratePosition.z + CONFIG.smashRange, {});
+  const crateSmashResult = handleCrateCollision({ charge: 0, smashActionActive: true });
+  assert(
+    "crate smash range overlaps and handler breaks crate",
+    aabb(crateSmashRange, representativeCrateBox) && crateSmashResult.breakCrate && !crateSmashResult.blocked,
+  );
+
+  assert(
+    "finish trigger behaviour completes at gate plane only while playing",
+    handleGateCollision({ playing: true, complete: false, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: false, complete: false, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: true, complete: true, nextZ: LEVEL.finish.z, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })
+      && !handleGateCollision({ playing: true, complete: false, nextZ: LEVEL.finish.z + 1, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ }),
   );
 
   assert("title theme contains all 32 bars", TITLE_THEME.sequence.length === TITLE_THEME.stepsPerBar * 32);

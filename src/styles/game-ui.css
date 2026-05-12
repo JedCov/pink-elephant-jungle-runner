@@ -175,21 +175,81 @@ button {
 .title-elephant-badge {
   position: relative;
   overflow: hidden;
+  width: 5.25rem;
+  height: 5.25rem;
   background:
-    radial-gradient(circle at 38% 30%, rgba(255, 214, 235, 0.38), transparent 34%),
-    rgba(244, 114, 182, 0.24);
-  border: 1px solid rgba(255, 150, 205, 0.70);
+    radial-gradient(circle at 36% 24%, rgba(255, 244, 201, 0.54), transparent 16%),
+    radial-gradient(circle at 48% 48%, rgba(255, 125, 197, 0.32), transparent 58%),
+    linear-gradient(145deg, rgba(48, 83, 42, 0.82), rgba(83, 28, 70, 0.78) 58%, rgba(16, 25, 14, 0.92));
+  border: 1px solid rgba(255, 191, 219, 0.88);
   box-shadow:
-    inset 0 1px 10px rgba(255, 205, 233, 0.24),
-    0 0 26px rgba(244, 114, 182, 0.30);
+    inset 0 1px 18px rgba(255, 226, 241, 0.28),
+    inset 0 -12px 24px rgba(31, 7, 24, 0.38),
+    0 0 0 4px rgba(244, 114, 182, 0.08),
+    0 0 34px rgba(244, 114, 182, 0.44),
+    0 12px 28px rgba(3, 8, 5, 0.34);
+}
+
+.title-elephant-badge::before,
+.title-elephant-badge::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.title-elephant-badge::before {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: inset 8px 10px 18px rgba(255, 255, 255, 0.08);
+}
+
+.title-elephant-badge::after {
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.42), transparent 6%),
+    radial-gradient(circle at 73% 76%, rgba(255, 228, 120, 0.34), transparent 7%);
+  filter: blur(0.1px);
 }
 
 .title-elephant-mascot {
   position: relative;
   display: block;
-  width: 38px;
-  height: 31px;
-  filter: drop-shadow(0 4px 5px rgba(31, 5, 20, 0.55));
+  width: 58px;
+  height: 48px;
+  filter: drop-shadow(0 7px 7px rgba(31, 5, 20, 0.58));
+  transform: translateY(2px);
+}
+
+.title-elephant-sunburst,
+.title-elephant-shadow,
+.title-elephant-body,
+.title-elephant-head,
+.title-elephant-ear,
+.title-elephant-trunk,
+.title-elephant-tusk,
+.title-elephant-tail,
+.title-elephant-leg,
+.title-elephant-crown {
+  position: absolute;
+  display: block;
+}
+
+.title-elephant-sunburst {
+  inset: -11px -7px 4px -9px;
+  border-radius: 9999px;
+  background:
+    conic-gradient(from 0.08turn, rgba(255, 226, 127, 0.34), transparent 0.08turn 0.15turn, rgba(255, 135, 201, 0.30) 0.2turn, transparent 0.29turn 0.38turn, rgba(107, 255, 179, 0.20) 0.45turn, transparent 0.52turn 0.64turn, rgba(255, 226, 127, 0.28) 0.72turn, transparent 0.8turn),
+    radial-gradient(circle, rgba(255, 235, 184, 0.22), transparent 56%);
+  opacity: 0.82;
+}
+
+.title-elephant-shadow {
+  left: 7px;
+  bottom: 1px;
+  width: 46px;
+  height: 8px;
+  border-radius: 9999px;
+  background: radial-gradient(ellipse, rgba(4, 13, 7, 0.52), transparent 70%);
 }
 
 .title-elephant-body,
@@ -197,72 +257,179 @@ button {
 .title-elephant-ear,
 .title-elephant-trunk,
 .title-elephant-leg {
-  position: absolute;
-  display: block;
-  background: linear-gradient(135deg, #ffd1e8 0%, #ff6fb7 42%, #ff2f92 72%, #c91872 100%);
-  border: 1px solid rgba(255, 224, 240, 0.58);
+  background: linear-gradient(135deg, #ffe1f0 0%, #ff8ccc 32%, #ff42a2 68%, #c91872 100%);
+  border: 1px solid rgba(255, 232, 245, 0.72);
 }
 
 .title-elephant-body {
-  left: 9px;
-  top: 9px;
-  width: 24px;
-  height: 16px;
-  border-radius: 12px 13px 8px 8px;
-  box-shadow: inset -5px -5px 8px rgba(126, 13, 73, 0.34), inset 3px 3px 6px rgba(255, 238, 247, 0.52);
+  left: 17px;
+  top: 17px;
+  width: 32px;
+  height: 21px;
+  border-radius: 17px 18px 10px 12px;
+  box-shadow:
+    inset -7px -6px 10px rgba(126, 13, 73, 0.36),
+    inset 5px 4px 7px rgba(255, 244, 250, 0.56),
+    0 2px 1px rgba(255, 255, 255, 0.12);
+}
+
+.title-elephant-body::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 5px;
+  width: 12px;
+  height: 7px;
+  border-radius: 9999px;
+  background: rgba(255, 239, 248, 0.28);
+  transform: rotate(-13deg);
 }
 
 .title-elephant-head {
-  left: 2px;
-  top: 10px;
-  width: 16px;
-  height: 15px;
-  border-radius: 10px 8px 8px 9px;
-  box-shadow: inset -4px -4px 7px rgba(126, 13, 73, 0.30), inset 3px 3px 6px rgba(255, 238, 247, 0.54);
+  left: 6px;
+  top: 16px;
+  width: 22px;
+  height: 20px;
+  border-radius: 14px 10px 11px 13px;
+  z-index: 4;
+  box-shadow:
+    inset -5px -5px 8px rgba(126, 13, 73, 0.32),
+    inset 4px 4px 7px rgba(255, 244, 250, 0.58);
 }
 
 .title-elephant-ear {
-  left: 8px;
+  left: 14px;
+  top: 9px;
+  width: 18px;
+  height: 24px;
+  border-radius: 65% 45% 58% 50%;
+  background:
+    radial-gradient(circle at 42% 48%, #ffd7ec 0%, #ff99cf 38%, #ff52aa 62%, #c91972 100%);
+  transform: rotate(-11deg);
+  z-index: 3;
+  box-shadow: inset 3px 3px 5px rgba(255, 247, 251, 0.34);
+}
+
+.title-elephant-ear::after {
+  content: "";
+  position: absolute;
+  left: 4px;
   top: 5px;
-  width: 12px;
-  height: 16px;
-  border-radius: 60% 46% 56% 50%;
-  background: radial-gradient(circle at 38% 42%, #ffd8ec 0%, #ff79bd 54%, #f4248b 78%, #bd176b 100%);
-  transform: rotate(-9deg);
-  z-index: 1;
+  width: 9px;
+  height: 13px;
+  border-radius: 65% 45% 58% 50%;
+  background: rgba(255, 221, 239, 0.48);
+  border: 1px solid rgba(255, 246, 250, 0.32);
 }
 
 .title-elephant-trunk {
-  left: 0;
-  top: 19px;
-  width: 8px;
-  height: 12px;
-  border-radius: 0 0 7px 7px;
+  left: 2px;
+  top: 28px;
+  width: 10px;
+  height: 16px;
+  border-radius: 0 0 8px 8px;
   border-top: 0;
-  transform: rotate(7deg);
+  transform: rotate(9deg);
   transform-origin: top center;
-  box-shadow: inset -2px -3px 5px rgba(126, 13, 73, 0.30), inset 2px 1px 4px rgba(255, 238, 247, 0.48);
+  z-index: 5;
+  box-shadow:
+    inset -3px -4px 6px rgba(126, 13, 73, 0.32),
+    inset 2px 1px 5px rgba(255, 238, 247, 0.50);
+}
+
+.title-elephant-trunk::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  bottom: 2px;
+  width: 4px;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(92, 12, 51, 0.42);
+}
+
+.title-elephant-tusk {
+  left: 9px;
+  top: 31px;
+  width: 11px;
+  height: 5px;
+  border-radius: 0 9999px 9999px 0;
+  background: linear-gradient(90deg, #fff9dc, #f8d27b);
+  transform: rotate(10deg);
+  z-index: 6;
+  box-shadow: 0 1px 2px rgba(60, 33, 7, 0.22);
 }
 
 .title-elephant-head::after {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 4px;
-  width: 3px;
-  height: 3px;
+  left: 7px;
+  top: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 9999px;
-  background: #240715;
-  box-shadow: 0 0 0 1px rgba(255, 235, 246, 0.42);
+  background: #200713;
+  box-shadow:
+    0 0 0 1px rgba(255, 235, 246, 0.58),
+    7px 12px 0 -1px rgba(255, 202, 227, 0.70);
+}
+
+.title-elephant-tail {
+  right: 4px;
+  top: 22px;
+  width: 12px;
+  height: 10px;
+  border-top: 3px solid #ff6fba;
+  border-right: 2px solid #e22f8f;
+  border-radius: 0 9px 0 0;
+  transform: rotate(-17deg);
+  z-index: 1;
+}
+
+.title-elephant-tail::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #ff9bd1;
 }
 
 .title-elephant-leg {
-  top: 22px;
-  width: 7px;
-  height: 8px;
-  border-radius: 0 0 4px 4px;
+  top: 34px;
+  width: 9px;
+  height: 10px;
+  border-radius: 0 0 5px 5px;
   border-top: 0;
+  z-index: 3;
+  box-shadow: inset -2px -4px 5px rgba(126, 13, 73, 0.25);
 }
 
-.title-elephant-leg-front { left: 13px; }
-.title-elephant-leg-back { left: 27px; }
+.title-elephant-leg::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  bottom: 1px;
+  width: 5px;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(255, 236, 246, 0.42);
+}
+
+.title-elephant-leg-front { left: 18px; }
+.title-elephant-leg-back { left: 39px; }
+
+.title-elephant-crown {
+  left: 24px;
+  top: 4px;
+  width: 16px;
+  height: 11px;
+  background:
+    linear-gradient(135deg, transparent 0 28%, #8df0a6 29% 56%, transparent 57%) 0 2px / 8px 9px no-repeat,
+    linear-gradient(45deg, transparent 0 28%, #d8f57b 29% 56%, transparent 57%) 7px 0 / 9px 11px no-repeat;
+  filter: drop-shadow(0 1px 2px rgba(2, 15, 5, 0.45));
+  transform: rotate(8deg);
+  z-index: 7;
+}

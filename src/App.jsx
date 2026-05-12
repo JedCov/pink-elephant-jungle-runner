@@ -1549,12 +1549,17 @@ export default function App() {
             <div className="title-elephant-badge mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
               aria-label="Pink elephant mascot" role="img">
               <span className="title-elephant-mascot" aria-hidden="true">
+                <span className="title-elephant-sunburst" />
+                <span className="title-elephant-shadow" />
+                <span className="title-elephant-tail" />
                 <span className="title-elephant-ear" />
                 <span className="title-elephant-body" />
                 <span className="title-elephant-head" />
                 <span className="title-elephant-trunk" />
-                <span className="title-elephant-leg title-elephant-leg-front" />
+                <span className="title-elephant-tusk" />
                 <span className="title-elephant-leg title-elephant-leg-back" />
+                <span className="title-elephant-leg title-elephant-leg-front" />
+                <span className="title-elephant-crown" />
               </span>
             </div>
             <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>

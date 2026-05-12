@@ -3,7 +3,7 @@ import * as THREE from "three";
 
 import { Icon } from "./components/Icon.jsx";
 import { CONFIG } from "./game/config.js";
-import { branchHitsPlayer, obstacleBox, playerBox as makePlayerBox } from "./game/collision.js";
+import { branchHitsPlayer } from "./game/collision.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, lerp } from "./game/math.js";
@@ -282,6 +282,7 @@ export default function App() {
     });
 
     const colliders = [], pickups = [], crocs = [], particles = [], pops = [];
+    const activeObstacles = [];
     const enemies = [], collectibleMeshes = [];
     const particlePool = [];
     const popPools = new Map();
@@ -621,15 +622,54 @@ export default function App() {
 
     pickupPopPresets.forEach(([text, colour, count]) => prewarmPopText(text, colour, count));
 
-    function playerBox(nx, ny, nz) {
-      return makePlayerBox(nx, ny, nz, body.slideTimer > 0);
+    function setPlayerBox(target, nx, ny, nz) {
+      const hw = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
+      const hh = body.slideTimer > 0 ? CONFIG.playerSize * 0.25 : (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
+      const hd = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
+      target.minX = nx - hw;
+      target.maxX = nx + hw;
+      target.minY = ny - hh;
+      target.maxY = ny + hh;
+      target.minZ = nz - hd;
+      target.maxZ = nz + hd;
+      return target;
+    }
+
+    function setObstacleBox(target, obs) {
+      target.minX = obs.x - obs.w / 2;
+      target.maxX = obs.x + obs.w / 2;
+      target.minY = obs.y - obs.h / 2;
+      target.maxY = obs.y + obs.h / 2;
+      target.minZ = obs.z - obs.d / 2;
+      target.maxZ = obs.z + obs.d / 2;
+      return target;
+    }
+
+    function setRadiusBox(target, item) {
+      target.minX = item.x - item.radius;
+      target.maxX = item.x + item.radius;
+      target.minY = item.y - item.radius;
+      target.maxY = item.y + item.radius;
+      target.minZ = item.z - item.radius;
+      target.maxZ = item.z + item.radius;
+      return target;
+    }
+
+    function setEnemyBox(target, en) {
+      target.minX = en.x - en.w / 2;
+      target.maxX = en.x + en.w / 2;
+      target.minY = 0;
+      target.maxY = en.h;
+      target.minZ = en.z - en.d / 2;
+      target.maxZ = en.z + en.d / 2;
+      return target;
     }
 
     function zOverlapDepth(a, b) {
       return Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ);
     }
 
-    function sweptObstaclePlayerBox(obsBox, currentBox, nextBox, nextLocalX, nextY, nextZ) {
+    function sweptObstaclePlayerBox(obsBox, currentBox, nextBox, nextLocalX, nextY, nextZ, contactBox) {
       const forward = body.speed > 0 && currentBox.minZ > obsBox.maxZ && nextBox.minZ <= obsBox.maxZ;
       const backward = body.speed < 0 && currentBox.maxZ < obsBox.minZ && nextBox.maxZ >= obsBox.minZ;
       if (!forward && !backward) return null;
@@ -641,7 +681,7 @@ export default function App() {
       const contactLocalX = lerp(body.localX, nextLocalX, t);
       const contactY = lerp(body.y, nextY, t);
       const contactX = worldX(contactLocalX, contactZ);
-      const contactBox = playerBox(contactX, contactY, contactZ);
+      setPlayerBox(contactBox, contactX, contactY, contactZ);
 
       return aabb(contactBox, obsBox) ? contactBox : null;
     }
@@ -796,6 +836,14 @@ export default function App() {
       }
     }
 
+    const playerAabb = {};
+    const currentAabb = {};
+    const obstacleAabb = {};
+    const contactAabb = {};
+    const smashAabb = {};
+    const radiusAabb = {};
+    const enemyAabb = {};
+
     function updatePhysics(dt) {
       const k = keyRef.current;
       const playing = startedRef.current && !completeRef.current && !gameOverRef.current && body.lives > 0;
@@ -942,27 +990,33 @@ export default function App() {
         }
       }
 
-      const pBox = playerBox(nx, ny, nz);
-      const currentBox = playerBox(body.x, body.y, body.z);
+      const pBox = setPlayerBox(playerAabb, nx, ny, nz);
+      const currentBox = setPlayerBox(currentAabb, body.x, body.y, body.z);
       const isReversing = playing && body.speed < 0 && nz > body.z;
       let blocked = false;
 
       if (body.smashActionTimer > 0) {
-        const smashBox = { minX: nx - CONFIG.smashRange, maxX: nx + CONFIG.smashRange, minY: 0, maxY: ny + 2.4, minZ: nz - CONFIG.smashRange * 1.4, maxZ: nz + CONFIG.smashRange * 0.35 };
+        smashAabb.minX = nx - CONFIG.smashRange;
+        smashAabb.maxX = nx + CONFIG.smashRange;
+        smashAabb.minY = 0;
+        smashAabb.maxY = ny + 2.4;
+        smashAabb.minZ = nz - CONFIG.smashRange * 1.4;
+        smashAabb.maxZ = nz + CONFIG.smashRange * 0.35;
         for (const obs of colliders) {
           if (!obs.active || obs.type !== "crate") continue;
-          const crateBox = { minX: obs.x - obs.w / 2, maxX: obs.x + obs.w / 2, minY: obs.y - obs.h / 2, maxY: obs.y + obs.h / 2, minZ: obs.z - obs.d / 2, maxZ: obs.z + obs.d / 2 };
-          if (aabb(smashBox, crateBox)) breakCrate(obs);
+          if (aabb(smashAabb, setObstacleBox(obstacleAabb, obs))) breakCrate(obs);
         }
       }
 
-      const activeObstacles = colliders.concat(crocs);
+      activeObstacles.length = 0;
+      for (let i = 0; i < colliders.length; i += 1) activeObstacles.push(colliders[i]);
+      for (let i = 0; i < crocs.length; i += 1) activeObstacles.push(crocs[i]);
       for (const obs of activeObstacles) {
         if (!obs.active) continue;
-        const oBox = obstacleBox(obs);
+        const oBox = setObstacleBox(obstacleAabb, obs);
         let collisionBox = aabb(pBox, oBox) ? pBox : null;
         if (!collisionBox && (obs.type === "log" || obs.type === "branch" || obs.type === "crate" || obs.type === "croc")) {
-          collisionBox = sweptObstaclePlayerBox(oBox, currentBox, pBox, nextLocalX, ny, nz);
+          collisionBox = sweptObstaclePlayerBox(oBox, currentBox, pBox, nextLocalX, ny, nz, contactAabb);
         }
         if (!collisionBox) continue;
         const canRetreat = isReversing && isRetreatingFromObstacle(currentBox, collisionBox, oBox);
@@ -980,8 +1034,7 @@ export default function App() {
 
       for (const item of pickups) {
         if (!item.active) continue;
-        const box = { minX: item.x - item.radius, maxX: item.x + item.radius, minY: item.y - item.radius, maxY: item.y + item.radius, minZ: item.z - item.radius, maxZ: item.z + item.radius };
-        if (aabb(pBox, box)) {
+        if (aabb(pBox, setRadiusBox(radiusAabb, item))) {
           item.active = false;
           item.mesh.visible = false;
           if (item.type === "fruit") {
@@ -1002,8 +1055,7 @@ export default function App() {
       // Patrol monkey collision — spin attack defeats, otherwise hurts
       for (const en of enemies) {
         if (!en.active) continue;
-        const enBox = { minX: en.x - en.w / 2, maxX: en.x + en.w / 2, minY: 0, maxY: en.h, minZ: en.z - en.d / 2, maxZ: en.z + en.d / 2 };
-        if (!aabb(pBox, enBox)) continue;
+        if (!aabb(pBox, setEnemyBox(enemyAabb, en))) continue;
         if (body.spinTimer > 0) {
           en.active = false;
           en.mesh.visible = false;
@@ -1029,8 +1081,7 @@ export default function App() {
       // Golden pineapple collectibles — always collectible
       for (const col of collectibleMeshes) {
         if (!col.active) continue;
-        const colBox = { minX: col.x - col.radius, maxX: col.x + col.radius, minY: col.y - col.radius, maxY: col.y + col.radius, minZ: col.z - col.radius, maxZ: col.z + col.radius };
-        if (aabb(pBox, colBox)) {
+        if (aabb(pBox, setRadiusBox(radiusAabb, col))) {
           col.active = false;
           col.mesh.visible = false;
           const pts = collectScore(50);
@@ -1150,6 +1201,8 @@ export default function App() {
       }
     }
 
+    const cameraDesired = new THREE.Vector3();
+
     function updateCamera() {
       const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
       camera.fov = lerp(camera.fov, lerp(CONFIG.cameraFov, CONFIG.highChargeFov, charge), 0.04);
@@ -1165,8 +1218,8 @@ export default function App() {
       const lookZ = body.z - 26 - charge * 8;
       const lookAhead = worldPosition(body.localX * 0.35, lookZ);
       const cameraX = lerp(body.x, lookAhead.x, 0.42);
-      const desired = new THREE.Vector3(cameraX + shake + chargeShake, body.y + CONFIG.cameraHeight + shake, body.z + CONFIG.cameraDistance + charge * 2);
-      camera.position.lerp(desired, CONFIG.cameraLerp);
+      cameraDesired.set(cameraX + shake + chargeShake, body.y + CONFIG.cameraHeight + shake, body.z + CONFIG.cameraDistance + charge * 2);
+      camera.position.lerp(cameraDesired, CONFIG.cameraLerp);
       camera.lookAt(lookAhead.x, body.y + 1.4, lookAhead.z);
     }
 

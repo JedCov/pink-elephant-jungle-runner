@@ -134,6 +134,7 @@ export default function App() {
   const [complete, setComplete] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
+  const [sceneError, setSceneError] = useState(null);
   const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
@@ -255,7 +256,16 @@ export default function App() {
     const camera = new THREE.PerspectiveCamera(CAMERA_FEEDBACK.cameraFov, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 360);
     camera.position.set(0, 8, 16);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    } catch (error) {
+      const message = error?.message || "WebGL is unavailable in this browser.";
+      console.error("Pink Elephant WebGL renderer failed to start", error);
+      setSceneError(message);
+      return undefined;
+    }
+    setSceneError(null);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.shadowMap.enabled = true;
@@ -1663,6 +1673,17 @@ export default function App() {
     <main className="relative h-screen w-screen overflow-hidden bg-[#132516] text-white" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <div ref={mountRef} className="absolute inset-0" />
 
+      {sceneError && (
+        <section className="app-fallback-screen absolute inset-0 z-30 flex items-center justify-center px-6">
+          <div className="app-fallback-card">
+            <div className="app-fallback-icon" aria-hidden="true">🐘</div>
+            <h1>Pink Elephant could not start the 3D jungle</h1>
+            <p>Your browser blocked or could not create the WebGL renderer, so the game was showing an empty green screen.</p>
+            <pre>{sceneError}</pre>
+          </div>
+        </section>
+      )}
+
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2"
@@ -1778,7 +1799,7 @@ export default function App() {
       )}
 
       {/* START SCREEN */}
-      {!started && !complete && !gameOver && (
+      {!started && !complete && !gameOver && !sceneError && (
         <section className="absolute inset-0 z-30 flex items-center justify-center px-6"
           style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(15,28,12,0.45) 50%, rgba(0,0,0,0.8) 100%)", backdropFilter: "blur(2px)" }}>
           <div className="w-full max-w-xl rounded-[2rem] p-8 text-center"

@@ -7,7 +7,7 @@ export function normalizeInitials(initials) {
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 3);
 
-  return normalized.padEnd(3, "-");
+  return normalized;
 }
 
 function normalizeDate(date) {
@@ -49,6 +49,8 @@ export function rankLeaderboardEntries(entries, limit = LEADERBOARD_LIMIT) {
 
 export function addLeaderboardEntry(entries, entry, limit = LEADERBOARD_LIMIT) {
   return rankLeaderboardEntries([...entries, entry], limit);
+}
+
 const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard.v1";
 const DEFAULT_TABLE = "leaderboard";
 const MAX_ENTRIES = 10;
@@ -77,13 +79,6 @@ function toSafeInteger(value, fallback = 0) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.max(0, Math.floor(number));
-}
-
-export function normalizeInitials(value) {
-  return String(value ?? "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 3);
 }
 
 export function validateInitials(value) {

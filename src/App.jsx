@@ -71,6 +71,8 @@ function saveLeaderboardEntries(entries) {
 
 function formatLeaderboardDate(date) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(date));
+}
+
 const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
 
 function readStoredAudioState() {
@@ -150,20 +152,20 @@ function formatElapsed(elapsedMs) {
   return `${mm}:${ss}`;
 }
 
-const LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard";
+const LEGACY_LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard";
 const MAX_LEADERBOARD_ENTRIES = 20;
 const INITIALS_LENGTH = 3;
 
-function normalizeInitials(value) {
+function normalizeLegacyInitials(value) {
   return String(value ?? "")
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, INITIALS_LENGTH);
 }
 
-function normalizeLeaderboardEntry(entry) {
+function normalizeLegacyLeaderboardEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
-  const initials = normalizeInitials(entry.initials);
+  const initials = normalizeLegacyInitials(entry.initials);
   const score = Number(entry.score);
   const elapsedMs = Number(entry.elapsedMs);
   if (initials.length !== INITIALS_LENGTH || !Number.isFinite(score) || !Number.isFinite(elapsedMs)) return null;
@@ -182,37 +184,37 @@ function sortLeaderboardEntries(entries) {
   return [...entries].sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
 }
 
-function loadLeaderboard() {
+function loadLegacyLeaderboard() {
   try {
     if (typeof window === "undefined" || !window.localStorage) return [];
-    const stored = window.localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+    const stored = window.localStorage.getItem(LEGACY_LEADERBOARD_STORAGE_KEY);
     if (!stored) return [];
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    return sortLeaderboardEntries(parsed.map(normalizeLeaderboardEntry).filter(Boolean)).slice(0, MAX_LEADERBOARD_ENTRIES);
+    return sortLeaderboardEntries(parsed.map(normalizeLegacyLeaderboardEntry).filter(Boolean)).slice(0, MAX_LEADERBOARD_ENTRIES);
   } catch (error) {
     console.warn("Unable to load leaderboard", error);
     return [];
   }
 }
 
-function saveLeaderboard(entries) {
+function saveLegacyLeaderboard(entries) {
   try {
     if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
+    window.localStorage.setItem(LEGACY_LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
   } catch (error) {
     console.warn("Unable to save leaderboard", error);
   }
 }
 
-function rankLeaderboardEntry(entries, result) {
+function rankLegacyLeaderboardEntry(entries, result) {
   if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.elapsedMs)) return -1;
   const ranked = sortLeaderboardEntries([...entries, result]);
   const rank = ranked.indexOf(result);
   return rank >= 0 && rank < MAX_LEADERBOARD_ENTRIES ? rank : -1;
 }
 
-function insertLeaderboardEntry(entries, entry) {
+function insertLegacyLeaderboardEntry(entries, entry) {
   return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
 }
 
@@ -290,6 +292,8 @@ export default function App() {
   const completeRef = useRef(false);
   const gameOverRef = useRef(false);
   const debugRef = useRef(false);
+  const pausedRef = useRef(false);
+  const pauseStartedAtRef = useRef(null);
   const audioManagerRef = useRef(null);
   if (!audioManagerRef.current) audioManagerRef.current = createAudioManager();
   const resetGameRef = useRef(null);
@@ -300,6 +304,7 @@ export default function App() {
   const [complete, setComplete] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [sceneError, setSceneError] = useState(null);
   const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
@@ -315,9 +320,8 @@ export default function App() {
     source: isLeaderboardAvailable() ? "remote" : "local",
     error: null,
   });
-  const [leaderboard, setLeaderboard] = useState(() => loadLeaderboard());
+  const [leaderboard, setLeaderboard] = useState(() => loadLegacyLeaderboard());
   const leaderboardRef = useRef(leaderboard);
-  const [initials, setInitials] = useState("");
   const [pendingLeaderboardResult, setPendingLeaderboardResult] = useState(null);
   const [audioState, setAudioState] = useState(readStoredAudioState);
 
@@ -341,6 +345,36 @@ export default function App() {
     scoreTally: useRef(null),
     debug: useRef(null),
   };
+
+
+  function setPausedState(nextPaused) {
+    const shouldPause = Boolean(nextPaused) && startedRef.current && !completeRef.current && !gameOverRef.current;
+    if (pausedRef.current === shouldPause) {
+      if (shouldPause) keyRef.current = createKeys();
+      return;
+    }
+
+    pausedRef.current = shouldPause;
+    keyRef.current = createKeys();
+    if (shouldPause) {
+      pauseStartedAtRef.current = performance.now();
+      audioManagerRef.current?.updateGameplayMusic({ charge: 0, isPlaying: false });
+    } else {
+      if (pauseStartedAtRef.current !== null && gameStartTimeRef.current) {
+        gameStartTimeRef.current += performance.now() - pauseStartedAtRef.current;
+      }
+      pauseStartedAtRef.current = null;
+    }
+    setPaused(shouldPause);
+  }
+
+  function resumeGame() {
+    setPausedState(false);
+  }
+
+  function restartGame() {
+    resetGameRef.current?.({ start: true });
+  }
 
   function startAudio() {
     return audioManagerRef.current?.startAudio() ?? null;
@@ -392,6 +426,8 @@ export default function App() {
   useEffect(() => {
     leaderboardRef.current = leaderboard;
   }, [leaderboard]);
+
+  useEffect(() => {
     audioManagerRef.current?.setAudioState(audioState);
     writeStoredAudioState(audioState);
   }, [audioState]);
@@ -1212,6 +1248,8 @@ export default function App() {
       startedRef.current = start;
       completeRef.current = false;
       gameOverRef.current = false;
+      pausedRef.current = false;
+      pauseStartedAtRef.current = null;
       gameStartTimeRef.current = start ? performance.now() : null;
       setFinalResults(null);
       setInitials("");
@@ -1219,6 +1257,7 @@ export default function App() {
       setStarted(start);
       setComplete(false);
       setGameOver(false);
+      setPaused(false);
     }
 
     resetGameRef.current = resetGame;
@@ -1317,8 +1356,8 @@ export default function App() {
         const results = snapshotResults();
         recordLeaderboardResult(results);
         setFinalResults(results);
-        setFinalResults(results);
-        if (rankLeaderboardEntry(leaderboardRef.current, results) !== -1) {
+        setPausedState(false);
+        if (rankLegacyLeaderboardEntry(leaderboardRef.current, results) !== -1) {
           setPendingLeaderboardResult(results);
           setInitials("");
         }
@@ -1342,12 +1381,13 @@ export default function App() {
       const results = snapshotResults();
       body.completed = true;
       completeRef.current = true;
+      setPausedState(false);
       body.speed = 0;
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
       recordLeaderboardResult(results);
       setFinalResults(results);
-      if (rankLeaderboardEntry(leaderboardRef.current, results) !== -1) {
+      if (rankLegacyLeaderboardEntry(leaderboardRef.current, results) !== -1) {
         setPendingLeaderboardResult(results);
         setInitials("");
       }
@@ -1396,11 +1436,19 @@ export default function App() {
     function keyDown(e) {
       if (!isAllowedKey(e.code)) return;
       e.preventDefault();
-      if (e.code === "Backquote" && !keyRef.current.__pressed.Backquote) {
+      const wasPressed = Boolean(keyRef.current.__pressed[e.code]);
+      if (e.code === "Backquote" && !wasPressed) {
         debugRef.current = !debugRef.current;
         setDebug(debugRef.current);
       }
-      setKeyState(keyRef.current, e.code, true);
+      if (e.code === "Escape" || e.code === "KeyP") {
+        if (!e.repeat && !wasPressed) {
+          if (startedRef.current && !completeRef.current && !gameOverRef.current) setPausedState(!pausedRef.current);
+          else keyRef.current = createKeys();
+        }
+        return;
+      }
+      if (!pausedRef.current) setKeyState(keyRef.current, e.code, true);
     }
 
     function keyUp(e) {
@@ -1409,7 +1457,10 @@ export default function App() {
       setKeyState(keyRef.current, e.code, false);
     }
 
-    function blur() { keyRef.current = createKeys(); }
+    function blur() {
+      keyRef.current = createKeys();
+      if (startedRef.current && !completeRef.current && !gameOverRef.current) setPausedState(true);
+    }
 
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
@@ -1429,7 +1480,7 @@ export default function App() {
     }
 
     function updateMusicAndStampede(charge) {
-      const isPlaying = startedRef.current && !completeRef.current && !gameOverRef.current;
+      const isPlaying = startedRef.current && !completeRef.current && !gameOverRef.current && !pausedRef.current;
       audioManagerRef.current?.updateGameplayMusic({ charge, isPlaying });
       if (!isPlaying) return;
       const audioTime = audioManagerRef.current?.getCurrentTime() ?? 0;
@@ -1455,7 +1506,7 @@ export default function App() {
 
     function updatePhysics(dt) {
       const k = keyRef.current;
-      const playing = startedRef.current && !completeRef.current && !gameOverRef.current && body.lives > 0;
+      const playing = startedRef.current && !completeRef.current && !gameOverRef.current && !pausedRef.current && body.lives > 0;
       const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const wasGrounded = body.grounded;
 
@@ -2014,6 +2065,11 @@ export default function App() {
         frames = 0;
         lastFpsTime = now;
       }
+      if (pausedRef.current) {
+        renderer.render(scene, camera);
+        frame = requestAnimationFrame(animate);
+        return;
+      }
       updatePhysics(dt);
       updateMeshes(dt, now);
       updateCamera(dt);
@@ -2177,7 +2233,7 @@ export default function App() {
       </p>
     </div>
   );
-  const normalizedInitials = normalizeInitials(initials);
+  const normalizedInitials = normalizeLegacyInitials(initials);
   const initialsReady = normalizedInitials.length === INITIALS_LENGTH;
 
   function submitLeaderboardInitials(event) {
@@ -2193,8 +2249,8 @@ export default function App() {
       lives: pendingLeaderboardResult.lives,
       date: new Date().toISOString(),
     };
-    const nextEntries = insertLeaderboardEntry(leaderboardRef.current, entry);
-    saveLeaderboard(nextEntries);
+    const nextEntries = insertLegacyLeaderboardEntry(leaderboardRef.current, entry);
+    saveLegacyLeaderboard(nextEntries);
     leaderboardRef.current = nextEntries;
     setLeaderboard(nextEntries);
     setPendingLeaderboardResult(null);
@@ -2213,7 +2269,7 @@ export default function App() {
         </label>
         <div className="mt-3 flex items-center justify-center gap-3">
           <input id={`leaderboard-initials-${theme}`} value={initials}
-            onChange={(event) => setInitials(normalizeInitials(event.target.value))}
+            onChange={(event) => setInitials(normalizeLegacyInitials(event.target.value))}
             maxLength={INITIALS_LENGTH} inputMode="text" autoComplete="off" autoFocus
             className="w-24 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none focus:border-white/70"
             aria-label="Leaderboard initials" />
@@ -2409,10 +2465,8 @@ export default function App() {
       {!started && !complete && !gameOver && !sceneError && (
         <section className="absolute inset-0 z-30 flex items-center justify-center px-6"
           style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(15,28,12,0.45) 50%, rgba(0,0,0,0.8) 100%)", backdropFilter: "blur(2px)" }}>
-          <div className="w-full max-w-xl rounded-[2rem] p-8 text-center"
-            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
           <div className="w-full max-w-3xl rounded-[2rem] p-8 text-center"
-            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)" }}>
+            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
             <div className="mb-2 text-xs font-black uppercase tracking-[0.38em] text-emerald-200/75">Three-Loop Jungle Trial</div>
             <div className="title-elephant-badge mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
               aria-label="Pink elephant mascot" role="img">
@@ -2471,6 +2525,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </div>
             {renderLeaderboard()}
             <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
               Advanced moves appear as trail prompts just before crates and monkey patrols.
@@ -2535,6 +2590,36 @@ export default function App() {
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again
             </button>
+          </div>
+        </section>
+      )}
+
+      {/* PAUSE OVERLAY */}
+      {paused && started && !complete && !gameOver && !sceneError && (
+        <section className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center px-6"
+          style={{ background: "rgba(7,12,8,0.42)", backdropFilter: "blur(3px)" }}
+          aria-modal="true" role="dialog" aria-labelledby="pause-title">
+          <div className="rounded-[1.5rem] p-6 text-center text-amber-50"
+            style={{ background: "rgba(12,20,10,0.9)", border: "1px solid rgba(246,210,138,0.28)", boxShadow: "0 0 45px rgba(0,0,0,0.32)" }}>
+            <div className="text-xs font-black uppercase tracking-[0.32em] text-emerald-200/70">Trail Paused</div>
+            <h2 id="pause-title" className="display-title mt-1 text-3xl font-black text-pink-200">Take a Jungle Breather</h2>
+            <p className="mt-2 text-sm text-amber-50/65">Press Esc or P to resume. Input was cleared so no move sticks after focus changes.</p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <button type="button" onClick={resumeGame}
+                className="rounded-full bg-emerald-200 px-5 py-2 text-sm font-black text-emerald-950 transition hover:scale-105 active:scale-95">
+                Resume
+              </button>
+              <button type="button" onClick={restartGame}
+                className="rounded-full bg-amber-200 px-5 py-2 text-sm font-black text-slate-950 transition hover:scale-105 active:scale-95">
+                Restart
+              </button>
+              <button type="button" onClick={() => toggleAudioState("muted")}
+                className="rounded-full px-5 py-2 text-sm font-black transition hover:scale-105 active:scale-95"
+                aria-pressed={audioState.muted}
+                style={{ background: audioState.muted ? "rgba(248,113,113,0.92)" : "rgba(134,239,172,0.92)", color: "#082f1a" }}>
+                {audioState.muted ? "Unmute" : "Mute"}
+              </button>
+            </div>
           </div>
         </section>
       )}

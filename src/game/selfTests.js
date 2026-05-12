@@ -12,6 +12,7 @@ import {
 } from "./collisions.js";
 import { applyFruitLifeCounter } from "./fruitLife.js";
 import { createKeys, setKeyState } from "./input.js";
+import { isAudioCategoryMuted, normalizeAudioState, resolveTonePlayback } from "./audio/audioManager.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
 import { CONFIG, MOVEMENT } from "./config.js";
@@ -195,6 +196,59 @@ export function runSelfTests() {
     ["pulse1", "pulse2", "triangle", "noise"].every((voice) => voice in TITLE_THEME.sequence[0]),
   );
   assert("title theme note conversion tunes A4", Math.abs(noteNameToFrequency("A4") - 440) < 0.00001);
+
+  const persistedAudio = normalizeAudioState({ muted: 1, musicMuted: 0, sfxMuted: "yes" });
+  assert(
+    "audio state normalizes persisted mute flags",
+    persistedAudio.muted === true && persistedAudio.musicMuted === false && persistedAudio.sfxMuted === true,
+  );
+  assert(
+    "audio mute gates first-gesture title autoplay for muted and unmuted states",
+    isAudioCategoryMuted({ muted: true, musicMuted: false, sfxMuted: false }, "music")
+      && isAudioCategoryMuted({ muted: false, musicMuted: true, sfxMuted: false }, "music")
+      && !isAudioCategoryMuted({ muted: false, musicMuted: false, sfxMuted: false }, "music"),
+  );
+  assert(
+    "audio state can separately mute sfx without muting music",
+    isAudioCategoryMuted({ muted: false, musicMuted: false, sfxMuted: true }, "impacts")
+      && !isAudioCategoryMuted({ muted: false, musicMuted: false, sfxMuted: true }, "music"),
+  );
+
+  const denseFruitTimes = new Map([["fruit", 10]]);
+  const denseFruitSkipped = resolveTonePlayback("fruit", 10.01, denseFruitTimes);
+  const denseFruitSoftened = resolveTonePlayback("fruit", 10.05, denseFruitTimes);
+  const spacedFruitFull = resolveTonePlayback("fruit", 10.12, denseFruitTimes);
+  assert(
+    "dense fruit pickup lines skip immediate repeats and soften near-overlaps",
+    !denseFruitSkipped.shouldPlay
+      && denseFruitSoftened.shouldPlay
+      && denseFruitSoftened.volumeScale > 0
+      && denseFruitSoftened.volumeScale < 1
+      && spacedFruitFull.shouldPlay
+      && spacedFruitFull.volumeScale === 1,
+  );
+
+  const stampedeThumpTimes = new Map([["thump", 22]]);
+  const stampedeThumpSkipped = resolveTonePlayback("thump", 22.03, stampedeThumpTimes);
+  const stampedeThumpSoftened = resolveTonePlayback("thump", 22.13, stampedeThumpTimes);
+  const stampedeNearScheduledMusic = resolveTonePlayback("thump", 21.93, stampedeThumpTimes);
+  assert(
+    "stampede thumps avoid harsh overlap at full charge cadence",
+    !stampedeThumpSkipped.shouldPlay
+      && stampedeThumpSoftened.shouldPlay
+      && stampedeThumpSoftened.volumeScale > 0.5
+      && stampedeThumpSoftened.volumeScale < 1
+      && stampedeNearScheduledMusic.shouldPlay
+      && stampedeNearScheduledMusic.volumeScale < 1,
+  );
+
+  const repeatedHurtTimes = new Map([["hurt", 30]]);
+  const repeatedHurtSkipped = resolveTonePlayback("hurt", 30.1, repeatedHurtTimes);
+  const repeatedHurtSoftened = resolveTonePlayback("hurt", 30.3, repeatedHurtTimes);
+  assert(
+    "hurt sounds throttle repeated damage feedback",
+    !repeatedHurtSkipped.shouldPlay && repeatedHurtSoftened.shouldPlay && repeatedHurtSoftened.volumeScale < 1,
+  );
 
   const pineappleAt80 = applyFruitLifeCounter(80, 20);
   assert("golden pineapple awards a bonus life at 80 fruit", pineappleAt80.livesAwarded === 1 && pineappleAt80.counter === 0);

@@ -20,7 +20,7 @@ import {
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
-import { createAudioManager } from "./game/audio/audioManager.js";
+import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import {
@@ -41,6 +41,78 @@ import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js"
 
 const nl = String.fromCharCode(10);
 const JUNGLE_LAYOUT_SEED = 0x5eed2026;
+
+const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
+
+function readStoredAudioState() {
+  if (typeof window === "undefined") return { ...DEFAULT_AUDIO_STATE };
+  try {
+    const stored = window.localStorage.getItem(AUDIO_PREFS_KEY);
+    return stored ? normalizeAudioState(JSON.parse(stored)) : { ...DEFAULT_AUDIO_STATE };
+  } catch {
+    return { ...DEFAULT_AUDIO_STATE };
+  }
+}
+
+function writeStoredAudioState(state) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(normalizeAudioState(state)));
+  } catch {
+    // Storage may be unavailable in private browsing or embedded previews.
+  }
+}
+
+function AudioControls({ audioState, onToggle, compact = false }) {
+  const allMuted = audioState.muted;
+  const musicMuted = audioState.muted || audioState.musicMuted;
+  const sfxMuted = audioState.muted || audioState.sfxMuted;
+  const buttonBase = compact
+    ? "pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
+  const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
+  const stopGestureStart = (event) => {
+    event.stopPropagation();
+  };
+
+  return (
+    <div className={wrapClass} onPointerDown={stopGestureStart} onKeyDown={stopGestureStart}>
+      <button
+        type="button"
+        onClick={() => onToggle("muted")}
+        className={buttonBase}
+        aria-pressed={allMuted}
+        aria-label={allMuted ? "Unmute all audio" : "Mute all audio"}
+        title="Mute or unmute all audio"
+        style={{ background: allMuted ? "rgba(248,113,113,0.92)" : "rgba(134,239,172,0.92)", color: "#082f1a" }}
+      >
+        {allMuted ? "🔇 Muted" : "🔊 Sound"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("musicMuted")}
+        className={buttonBase}
+        aria-pressed={musicMuted}
+        aria-label={musicMuted ? "Unmute music" : "Mute music"}
+        title="Toggle title and gameplay music"
+        style={{ background: musicMuted ? "rgba(255,255,255,0.14)" : "rgba(251,191,36,0.9)", color: musicMuted ? "rgba(255,255,255,0.75)" : "#422006", border: "1px solid rgba(255,255,255,0.16)" }}
+      >
+        Music {musicMuted ? "Off" : "On"}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("sfxMuted")}
+        className={buttonBase}
+        aria-pressed={sfxMuted}
+        aria-label={sfxMuted ? "Unmute sound effects" : "Mute sound effects"}
+        title="Toggle jumps, pickups, impacts, and UI sounds"
+        style={{ background: sfxMuted ? "rgba(255,255,255,0.14)" : "rgba(244,114,182,0.9)", color: sfxMuted ? "rgba(255,255,255,0.75)" : "#4a044e", border: "1px solid rgba(255,255,255,0.16)" }}
+      >
+        SFX {sfxMuted ? "Off" : "On"}
+      </button>
+    </div>
+  );
+}
 
 function formatElapsed(elapsedMs) {
   const elapsed = Math.floor(elapsedMs / 1000);
@@ -207,6 +279,7 @@ export default function App() {
   const leaderboardRef = useRef(leaderboard);
   const [initials, setInitials] = useState("");
   const [pendingLeaderboardResult, setPendingLeaderboardResult] = useState(null);
+  const [audioState, setAudioState] = useState(readStoredAudioState);
 
   const ui = {
     health: useRef(null),
@@ -233,6 +306,24 @@ export default function App() {
     return audioManagerRef.current?.startAudio() ?? null;
   }
 
+  function applyAudioState(nextState) {
+    const normalized = normalizeAudioState(nextState);
+    audioManagerRef.current?.setAudioState(normalized);
+    writeStoredAudioState(normalized);
+    return normalized;
+  }
+
+  function toggleAudioState(key) {
+    setAudioState((current) => {
+      const next = normalizeAudioState({ ...current, [key]: !current[key] });
+      applyAudioState(next);
+      if (!next.muted && !next.musicMuted && !startedRef.current && !completeRef.current && !gameOverRef.current) {
+        audioManagerRef.current?.startTitleTheme(true);
+      }
+      return next;
+    });
+  }
+
   function startTitleTheme() {
     audioManagerRef.current?.startTitleTheme(!startedRef.current && !completeRef.current && !gameOverRef.current);
   }
@@ -248,6 +339,9 @@ export default function App() {
   useEffect(() => {
     leaderboardRef.current = leaderboard;
   }, [leaderboard]);
+    audioManagerRef.current?.setAudioState(audioState);
+    writeStoredAudioState(audioState);
+  }, [audioState]);
 
   useEffect(() => {
     function beginTitleThemeFromGesture() {
@@ -1188,7 +1282,7 @@ export default function App() {
       burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
       burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
       popText(`TRUNK-SMASH! +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
-      playTone("smash");
+      playTone("crateSmash");
     }
 
     function collectScore(basePoints, comboWindowSeconds = SCORING.comboWindowSeconds) {
@@ -1207,7 +1301,7 @@ export default function App() {
       body.lives += livesAwarded;
       for (let i = 0; i < livesAwarded; i++) {
         popText("BONUS ELEPHANT!", body.x, body.y + 3.4, body.z, "#b7ffb7");
-        playTone("life");
+        playTone("bonusLife");
       }
     }
 
@@ -1307,6 +1401,7 @@ export default function App() {
 
       function playSlideEvent() {
         burst(body.x, 0.2, body.z, "#d6c399", 6, 0.2);
+        playTone("slideStart");
       }
 
       if (k.KeyZ && triggerPlayerSmash(body, playing)) {
@@ -1422,7 +1517,7 @@ export default function App() {
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", PARTICLES.monkeyBurstCount, 0.22);
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", PARTICLES.monkeySparkleCount, 0.18);
           popText(`MONKEY DOWN! +${pts}`, en.x, en.mesh.position.y + 2.8, en.z, "#ffcf66");
-          playTone("smash");
+          playTone("monkeyDefeat");
         } else {
           hurt(false);
         }
@@ -1634,22 +1729,24 @@ export default function App() {
       if (gameOverRef.current) return "The herd needs a breather. Try the trail again from here.";
       if (loop === 0) {
         if (local < 14) return "Hold ↑ to build Elephant Charge.";
-        if (local < 58) return "Follow the golden fruit and feel the big pink rhythm.";
-        if (local < 102) return "Use ← → to sway through the jungle trail.";
-        if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
-        if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
-        if (local < 194) return "Hold Space to Belly-Slide under vines; press ↓ to reverse.";
-        if (local < 218) return "Red-eyed banana monkeys patrol ahead — press E for a Spin Attack.";
-        if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
+        if (local < 42) return "Follow the golden fruit and feel the big pink rhythm.";
+        if (local < 64) return "Monkey patrol ahead — tap E for a Spin Attack.";
+        if (local < 96) return "Use ← → to sway through the jungle trail.";
+        if (local < 116) return "Tap Space to leap the log. Watch the shadow, not the ears.";
+        if (local < 142) return "Tap Space again in the air for a BIG Bounce.";
+        if (local < 162) return "Low vines ahead — hold Space to Belly-Slide.";
+        if (local < 192) return "Wooden crate ahead — press Z for a Trunk-Smash.";
+        if (local < 224) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
         return "Sugar cane restores energy after a jungle bump.";
       }
-      if (local < 58) return `${sectionLabel()}: build a braver Elephant Charge.`;
-      if (local < 102) return "Sway through the fruit trail. Big feet, gentle steering.";
-      if (local < 134) return "Leap the log. Keep the shadow clear.";
-      if (local < 168) return "Reach the high fruit with a BIG Bounce.";
-      if (local < 194) return "Belly-Slide low. Let the vines skim overhead.";
-      if (local < 218) return "Trunk-Smash the crate. Charge makes the jungle listen.";
-      if (local < 238) return "Crocodile creek again. Stop, read, then stampede.";
+      if (local < 42) return `${sectionLabel()}: build a braver Elephant Charge.`;
+      if (local < 64) return "Monkey patrol returning — tap E to Spin Attack.";
+      if (local < 96) return "Sway through the fruit trail. Big feet, gentle steering.";
+      if (local < 116) return "Leap the log. Keep the shadow clear.";
+      if (local < 142) return "Reach the high fruit with a BIG Bounce.";
+      if (local < 162) return "Belly-Slide low before the branch.";
+      if (local < 192) return "Trunk-Smash the crate with Z as it enters reach.";
+      if (local < 224) return "Crocodile creek again. Stop, read, then stampede.";
       return loop < 3 ? "Sugar cane ahead. Gather your elephant energy." : "Final stretch. Trumpet proudly towards the Jungle Gate!";
     }
 
@@ -2040,6 +2137,11 @@ export default function App() {
 
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
+        <div className="pointer-events-auto absolute bottom-4 right-4 z-20">
+          <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
+        </div>
+      )}
+      {started && !complete && !gameOver && (
         <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2"
           style={{ background: "linear-gradient(to bottom, rgba(10,18,10,0.72) 0%, transparent 100%)" }}>
           <div className="flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
@@ -2178,22 +2280,25 @@ export default function App() {
             <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>
             <h2 className="display-title mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.05em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
-              Stomp through a guided jungle corridor. Gather golden fruit, leap logs, BIG Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
+              Stomp through a guided jungle corridor. Start with charge, steering, jumping, and sliding; the trail teaches tougher moves right before they matter.
             </p>
+            <AudioControls audioState={audioState} onToggle={toggleAudioState} />
             <button onClick={startDemo}
               className="mt-7 rounded-full px-10 py-4 text-base font-black text-slate-950 transition hover:scale-105 active:scale-95"
               style={{ background: "#f472b6", boxShadow: "0 0 30px rgba(244,114,182,0.45)" }}>
               Begin the Trail
             </button>
-            <div className="mt-6 grid grid-cols-2 gap-2 text-left text-xs text-amber-50/70">
-              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space", "Leap"], ["Hold Space", "Belly-Slide"], ["↓ / S", "Reverse"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
-                <div key={key} className="flex items-center gap-2 rounded-xl px-3 py-2"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
+            <div className="title-primary-controls mt-6 text-left text-xs text-amber-50/70" aria-label="Primary controls">
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Steer"], ["Tap Space", "Jump"], ["Hold Space", "Slide"]].map(([key, label]) => (
+                <div key={key} className="title-primary-control flex items-center gap-2 rounded-xl px-3 py-2">
+                  <span className="title-control-key shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
                 </div>
               ))}
             </div>
             {renderLeaderboard()}
+            <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
+              Advanced moves appear as trail prompts just before crates and monkey patrols.
+            </div>
             <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{testSummary}</div>
           </div>
         </section>

@@ -337,6 +337,11 @@ export default function App() {
       cueLeaf: new THREE.DodecahedronGeometry(1, 0),
       cueRipple: new THREE.TorusGeometry(1, 0.035, 5, 14),
       cueGlint: new THREE.OctahedronGeometry(0.18, 0),
+      edgeStone: new THREE.DodecahedronGeometry(0.42, 0),
+      edgeFlower: new THREE.SphereGeometry(0.16, 8, 6),
+      edgeStem: new THREE.CylinderGeometry(0.035, 0.045, 0.5, 5),
+      edgeTorchPost: new THREE.CylinderGeometry(0.055, 0.075, 1.0, 6),
+      edgeTorchFlame: new THREE.ConeGeometry(0.18, 0.42, 7),
     };
     const sharedTreeGeometries = {
       trunk: sharedGeometries.treeTrunk,
@@ -406,6 +411,120 @@ export default function App() {
     const trunkMat = makeMaterial("#5d371d");
     const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c"), makeMaterial("#0f5b33")];
     const jungleRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
+
+    const edgePropGroup = new THREE.Group();
+    scene.add(edgePropGroup);
+    const edgeStoneMat = makeMaterial("#8f8a71", { roughness: 0.96 });
+    const edgeFlowerMats = [
+      makeMaterial("#ffd84d", { roughness: 0.72, emissive: "#3a2600", emissiveIntensity: 0.16 }),
+      makeMaterial("#ff7fb2", { roughness: 0.76, emissive: "#3a061a", emissiveIntensity: 0.12 }),
+      makeMaterial("#b9f4ff", { roughness: 0.7, emissive: "#062d36", emissiveIntensity: 0.14 }),
+    ];
+    const edgeStemMat = makeMaterial("#2b7c39", { roughness: 0.92 });
+    const edgeTorchPostMat = makeMaterial("#4a2b16", { roughness: 0.86 });
+    const edgeTorchFlameMat = new THREE.MeshStandardMaterial({ color: "#ffcf58", roughness: 0.35, emissive: "#ff8c1a", emissiveIntensity: 1.45 });
+    const edgeLipHighlightMat = makeMaterial("#ffc66d", { roughness: 0.82, emissive: "#4f2500", emissiveIntensity: 0.18 });
+
+    function trackCurvatureCue(z) {
+      return Math.abs(trackAngle(z - 18) - trackAngle(z + 18));
+    }
+
+    function nearestRiverApproachDistance(z) {
+      return LEVEL.rivers.reduce((nearest, river) => {
+        const approachDistance = z - river.z;
+        if (approachDistance < 8 || approachDistance > 74) return nearest;
+        return Math.min(nearest, approachDistance);
+      }, Infinity);
+    }
+
+    function makeEdgeFlower(rng) {
+      const flower = new THREE.Group();
+      const stem = new THREE.Mesh(sharedGeometries.edgeStem, edgeStemMat);
+      stem.position.y = 0.32;
+      stem.rotation.z = (rng() - 0.5) * 0.28;
+      const bloom = new THREE.Mesh(sharedGeometries.edgeFlower, edgeFlowerMats[Math.floor(rng() * edgeFlowerMats.length)]);
+      bloom.position.y = 0.62;
+      bloom.scale.set(1.25, 0.75, 1.25);
+      bloom.castShadow = true;
+      flower.add(stem, bloom);
+      return flower;
+    }
+
+    function makeEdgeTorch() {
+      const torch = new THREE.Group();
+      const post = new THREE.Mesh(sharedGeometries.edgeTorchPost, edgeTorchPostMat);
+      post.position.y = 0.56;
+      post.castShadow = true;
+      const flame = new THREE.Mesh(sharedGeometries.edgeTorchFlame, edgeTorchFlameMat);
+      flame.position.y = 1.28;
+      flame.castShadow = true;
+      torch.add(post, flame);
+      return torch;
+    }
+
+    function addEdgeGuidanceProps() {
+      const propRng = createSeededRandom(JUNGLE_LAYOUT_SEED ^ 0x0b3d5);
+      let lastHighlightZ = Infinity;
+      for (let z = 10; z > -792; z -= 10) {
+        const curvature = trackCurvatureCue(z);
+        const riverApproach = nearestRiverApproachDistance(z);
+        const bendCue = curvature > 0.11;
+        const riverCue = riverApproach !== Infinity;
+        const highlightCue = bendCue || riverCue;
+        const spacingSkip = !highlightCue && Math.floor(Math.abs(z) / 10) % 2 === 1;
+        if (spacingSkip) continue;
+
+        [-1, 1].forEach((side) => {
+          if (!highlightCue && propRng() < 0.28) return;
+          const localEdgeX = side * (safeHalfWidth + 0.58 + propRng() * 0.46 + (highlightCue ? 0.1 : 0.42));
+          const propZ = z + (propRng() - 0.5) * 3.2;
+          const pos = worldPosition(localEdgeX, propZ);
+          const roll = trackAngle(propZ);
+          let prop;
+
+          if (riverCue && riverApproach < 46 && Math.floor(Math.abs(z) / 10 + side) % 3 === 0) {
+            prop = makeEdgeTorch();
+            prop.scale.setScalar(0.9 + propRng() * 0.18);
+          } else if (bendCue && propRng() < 0.5) {
+            prop = new THREE.Mesh(sharedGeometries.edgeStone, edgeStoneMat);
+            const stoneScale = 0.7 + propRng() * 0.62;
+            prop.scale.set(stoneScale * (1.1 + propRng() * 0.35), stoneScale * 0.34, stoneScale * 0.78);
+            prop.castShadow = true;
+            prop.receiveShadow = true;
+          } else {
+            prop = makeEdgeFlower(propRng);
+            prop.scale.setScalar(0.72 + propRng() * 0.42);
+          }
+
+          prop.position.set(pos.x, 0.12, pos.z);
+          prop.rotation.y = roll + side * 0.32 + (propRng() - 0.5) * 0.42;
+          edgePropGroup.add(prop);
+        });
+
+        if (highlightCue && Math.abs(z - lastHighlightZ) > 20) {
+          const length = riverCue ? 9.5 : 7.2;
+          [-1, 1].forEach((side) => {
+            const lipSegment = new THREE.Mesh(
+              createTrackRibbonGeometry(
+                side < 0 ? -safeHalfWidth - 0.2 : safeHalfWidth - 0.02,
+                side < 0 ? -safeHalfWidth + 0.02 : safeHalfWidth + 0.2,
+                z + length * 0.5,
+                z - length * 0.5,
+                2.4,
+              ),
+              edgeLipHighlightMat,
+            );
+            lipSegment.position.y = 0.142;
+            lipSegment.receiveShadow = true;
+            edgePropGroup.add(lipSegment);
+          });
+          lastHighlightZ = z;
+        }
+      }
+    }
+
+    addEdgeGuidanceProps();
+
     for (let z = 16; z > -824; z -= 8) {
       [-1, 1].forEach((side) => {
         const jitterZ = z + jungleRng() * 5 - 2.5;

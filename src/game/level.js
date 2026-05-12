@@ -1,48 +1,249 @@
 import { CONFIG } from "./config.js";
 import { lerp } from "./math.js";
 
-function addFruitLine(fruits, startZ, endZ, count, localXFn, yFn) {
+export const LEVEL_SECTIONS = Object.freeze({
+  FRUIT_GUIDE: "fruit guide",
+  SWAY_TRAIL: "sway trail",
+  JUMP_LOG: "jump log",
+  HIGH_FRUIT: "high fruit",
+  SLIDE_BRANCH: "slide branch",
+  SMASH_CRATE: "smash crate",
+  RIVER_CROC: "river/croc",
+  HEALTH_RECOVERY: "health recovery",
+  MONKEY: "monkey",
+  PINEAPPLE: "pineapple",
+});
+
+function sectionDifficulty(loopIndex) {
+  return loopIndex === 0 ? "intro" : loopIndex === 1 ? "building" : "advanced";
+}
+
+function sectionMetadata(section, difficulty, tutorialPrompt) {
+  return {
+    section,
+    difficulty,
+    ...(tutorialPrompt ? { tutorialPrompt } : {}),
+  };
+}
+
+function addFruitLine(fruits, startZ, endZ, count, localXFn, yFn, metadata = {}) {
   for (let i = 0; i < count; i++) {
     const t = count === 1 ? 0 : i / (count - 1);
     const z = lerp(startZ, endZ, t);
-    fruits.push({ localX: localXFn(t, z), z, y: yFn ? yFn(t, z) : 1.05 });
+    fruits.push({ localX: localXFn(t, z), z, y: yFn ? yFn(t, z) : 1.05, ...metadata });
   }
 }
 
 export function buildLevel() {
   const fruits = [], health = [], logs = [], crates = [], branches = [], rivers = [], enemies = [], collectibles = [];
   const loops = [0, 245, 490];
+  const loopPlans = [
+    {
+      swayWidth: 1.45,
+      guideX: 0,
+      guideCount: 8,
+      swayCount: 6,
+      jumpCount: 5,
+      highCount: 5,
+      slideCount: 5,
+      crateFruitCount: 4,
+      jumpX: 0,
+      highX: 0,
+      slideX: 0,
+      crateFruitStartX: -0.55,
+      crateFruitEndX: 0.55,
+      log: { localX: 0, z: 108, width: 11.25 },
+      branch: { localX: 0, z: 148, width: 12.85 },
+      crates: [{ localX: 0, z: 184 }],
+      river: {
+        z: 228,
+        depth: 11.5,
+        crocs: [{ localX: -2.6, phase: 0.2 }, { localX: 2.6, phase: 3.1 }],
+      },
+      health: { localX: 0, z: 240 },
+      enemies: [{ localX: 0, z: 58, patrolRange: 1.85, patrolSpeed: 1.45 }],
+      pineapples: [{ localX: 3.65, z: 90, y: 1.35 }],
+    },
+    {
+      swayWidth: 2.65,
+      guideX: 0,
+      guideCount: 8,
+      swayCount: 8,
+      jumpCount: 6,
+      highCount: 7,
+      slideCount: 6,
+      crateFruitCount: 5,
+      jumpX: -0.75,
+      highX: 1.4,
+      slideX: -1.1,
+      crateFruitStartX: 1.6,
+      crateFruitEndX: -1.6,
+      log: { localX: -0.75, z: 108, width: 10.4 },
+      branch: { localX: 1.1, z: 148, width: 11.55 },
+      crates: [{ localX: -1.45, z: 184 }, { localX: 2.85, z: 184 }],
+      river: {
+        z: 228,
+        depth: 12.75,
+        crocs: [{ localX: -2.8, phase: 0.65 }, { localX: 2.45, phase: 2.95 }],
+      },
+      health: { localX: -1.8, z: 240 },
+      enemies: [{ localX: 1.45, z: 58, patrolRange: 2.75, patrolSpeed: 2.1 }],
+      pineapples: [{ localX: -3.75, z: 72, y: 1.55 }, { localX: 3.6, z: 166, y: 3.15 }],
+    },
+    {
+      swayWidth: 3.2,
+      guideX: -0.65,
+      guideCount: 7,
+      swayCount: 9,
+      jumpCount: 6,
+      highCount: 8,
+      slideCount: 6,
+      crateFruitCount: 6,
+      jumpX: 1.2,
+      highX: -2.05,
+      slideX: 1.65,
+      crateFruitStartX: -2.6,
+      crateFruitEndX: 2.6,
+      log: { localX: 1.2, z: 108, width: 9.55 },
+      branch: { localX: -1.45, z: 148, width: 10.65 },
+      crates: [{ localX: 0, z: 184 }, { localX: -3.05, z: 184 }, { localX: 3.05, z: 184 }],
+      river: {
+        z: 228,
+        depth: 14,
+        crocs: [{ localX: -3.1, phase: 1.1 }, { localX: 0, phase: 2.35 }, { localX: 3.1, phase: 3.65 }],
+      },
+      health: { localX: 2.2, z: 240 },
+      enemies: [{ localX: -1.6, z: 58, patrolRange: 3.35, patrolSpeed: 2.75 }],
+      pineapples: [{ localX: 4.05, z: 74, y: 1.7 }, { localX: -4.15, z: 170, y: 3.35 }],
+    },
+  ];
+
   loops.forEach((offset, index) => {
     const o = -offset;
-    const wide = index === 0 ? 0 : 0.25;
-    addFruitLine(fruits, o - 16, o - 54, 7 + index, () => 0);
-    addFruitLine(fruits, o - 66, o - 96, 7 + index, (t) => Math.sin(t * Math.PI * 2) * (2.5 + wide));
-    addFruitLine(fruits, o - 108, o - 130, 5 + index, () => (index % 2 === 0 ? 0 : 0.5), (t) => 1.05 + Math.sin(t * Math.PI) * 1.5);
-    addFruitLine(fruits, o - 140, o - 162, 6 + index, () => (index % 2 === 0 ? 0.8 : -0.8), (t) => 1.05 + Math.sin(t * Math.PI) * 2.35);
-    addFruitLine(fruits, o - 174, o - 190, 5 + index, () => 0, () => 0.88);
-    addFruitLine(fruits, o - 204, o - 214, 4 + index, (t) => -1 + t * 2, () => 1.05);
-    logs.push({ localX: index % 2 === 0 ? 0 : -0.6, z: o - 120, width: 10.5 - index * 0.45, height: 1.15, depth: 1.25 });
+    const plan = loopPlans[index];
+    const difficulty = sectionDifficulty(index);
+
+    // Fruit guide — loop 1 centers the teaching line; later loops bias pickups toward chosen routes.
+    addFruitLine(
+      fruits,
+      o - 16,
+      o - 52,
+      plan.guideCount,
+      () => plan.guideX,
+      undefined,
+      sectionMetadata(
+        LEVEL_SECTIONS.FRUIT_GUIDE,
+        difficulty,
+        index === 0 ? "Follow the fruit down the center path." : undefined,
+      ),
+    );
+
+    // Sway trail — loop 1 is gentle, loop 2 asks for movement, loop 3 pushes pickups off-center.
+    addFruitLine(
+      fruits,
+      o - 66,
+      o - 96,
+      plan.swayCount,
+      (t) => Math.sin(t * Math.PI * 2) * plan.swayWidth,
+      undefined,
+      sectionMetadata(LEVEL_SECTIONS.SWAY_TRAIL, difficulty),
+    );
+
+    // Jump log — fruit arc previews the log jump landing lane with more lateral demand each loop.
+    addFruitLine(
+      fruits,
+      o - 100,
+      o - 116,
+      plan.jumpCount,
+      () => plan.jumpX,
+      (t) => 1.05 + Math.sin(t * Math.PI) * 1.5,
+      sectionMetadata(
+        LEVEL_SECTIONS.JUMP_LOG,
+        difficulty,
+        index === 0 ? "Tap jump to clear the log." : undefined,
+      ),
+    );
+
+    // High fruit — rewards BIG Bounce, with loop 3 pulling the reward route away from safety.
+    addFruitLine(
+      fruits,
+      o - 124,
+      o - 140,
+      plan.highCount,
+      () => plan.highX,
+      (t) => 1.05 + Math.sin(t * Math.PI) * 2.35,
+      sectionMetadata(LEVEL_SECTIONS.HIGH_FRUIT, difficulty),
+    );
+
+    // Slide branch — low fruit line telegraphs ducking before the branch.
+    addFruitLine(
+      fruits,
+      o - 158,
+      o - 174,
+      plan.slideCount,
+      () => plan.slideX,
+      () => 0.88,
+      sectionMetadata(
+        LEVEL_SECTIONS.SLIDE_BRANCH,
+        difficulty,
+        index === 0 ? "Hold slide to belly under the branch." : undefined,
+      ),
+    );
+
+    // Smash crate — route line frames safer center play in loop 1 and risk/reward sweeps later.
+    addFruitLine(
+      fruits,
+      o - 176,
+      o - 184,
+      plan.crateFruitCount,
+      (t) => lerp(plan.crateFruitStartX, plan.crateFruitEndX, t),
+      () => 1.05,
+      sectionMetadata(LEVEL_SECTIONS.SMASH_CRATE, difficulty),
+    );
+
+    logs.push({ localX: plan.log.localX, z: o - plan.log.z, width: plan.log.width, height: 1.15, depth: 1.25, section: LEVEL_SECTIONS.JUMP_LOG, difficulty });
+
     // Low enough for a standing elephant to clip, high enough for a belly-slide to clear.
-    branches.push({ localX: index % 2 === 0 ? 0 : 0.8, z: o - 182, width: 12.25 - index * 0.3, height: 0.75, depth: 1.35, yOffset: 1.95 });
-    crates.push({ localX: index % 2 === 0 ? 0 : 1.2, z: o - 206, width: 2.15, height: 2.15, depth: 2.15 });
-    if (index > 0) crates.push({ localX: index % 2 === 0 ? -2.65 : 2.65, z: o - 216, width: 2.15, height: 2.15, depth: 2.15 });
-    rivers.push({
-      z: o - 228, width: 15.5, depth: 12.5 + index * 1.5,
-      crocs: index < 2
-        ? [{ localX: -2.4, phase: index * 0.55 }, { localX: 2.5, phase: 2.4 + index * 0.4 }]
-        : [{ localX: -3.1, phase: 0.3 + index }, { localX: 0, phase: 1.6 + index }, { localX: 3.1, phase: 2.8 + index }],
+    branches.push({ localX: plan.branch.localX, z: o - plan.branch.z, width: plan.branch.width, height: 0.75, depth: 1.35, yOffset: 1.95, section: LEVEL_SECTIONS.SLIDE_BRANCH, difficulty });
+
+    plan.crates.forEach((crate) => {
+      crates.push({ localX: crate.localX, z: o - crate.z, width: 2.15, height: 2.15, depth: 2.15, section: LEVEL_SECTIONS.SMASH_CRATE, difficulty });
     });
-    health.push({ localX: index % 2 === 0 ? 0 : -1.8, z: o - 240 });
 
-    // Patrol monkeys — one per loop, difficulty scales with loop index
-    enemies.push({ localX: index % 2 === 0 ? 0 : 1.5, z: o - 44, patrolRange: 2.5 + index * 0.5, patrolSpeed: 1.8 + index * 0.4, baseLocalX: index % 2 === 0 ? 0 : 1.5 });
-    enemies.push({ localX: index % 2 === 0 ? -2 : 2, z: o - 160, patrolRange: 3.0 + index * 0.5, patrolSpeed: 2.2 + index * 0.5, baseLocalX: index % 2 === 0 ? -2 : 2 });
+    // River/croc — water gap plus crocodile phases for the loop's hazard tempo.
+    rivers.push({
+      z: o - plan.river.z, width: 15.5, depth: plan.river.depth,
+      ...sectionMetadata(
+        LEVEL_SECTIONS.RIVER_CROC,
+        difficulty,
+        index === 0 ? "Time your path through the crocodiles." : undefined,
+      ),
+      crocs: plan.river.crocs,
+    });
 
-    // Golden pineapple collectibles — high-value, placed off the beaten path
-    collectibles.push({ localX: index % 2 === 0 ? -3.8 : 3.8, z: o - 72, y: 1.6 });
-    collectibles.push({ localX: index % 2 === 0 ? 3.5 : -3.5, z: o - 195, y: 3.2 });
+    // Health recovery — post-river pickup gives breathing room after hazard damage.
+    health.push({ localX: plan.health.localX, z: o - plan.health.z, section: LEVEL_SECTIONS.HEALTH_RECOVERY });
+
+    // Monkey — one readable patrol per loop; speed/range scale by loop role.
+    plan.enemies.forEach((enemy) => {
+      enemies.push({ localX: enemy.localX, z: o - enemy.z, patrolRange: enemy.patrolRange, patrolSpeed: enemy.patrolSpeed, baseLocalX: enemy.localX, section: LEVEL_SECTIONS.MONKEY, difficulty });
+    });
+
+    // Pineapple — high-value collectibles, placed off the beaten path for risk/reward routing.
+    plan.pineapples.forEach((pineapple) => {
+      collectibles.push({ localX: pineapple.localX, z: o - pineapple.z, y: pineapple.y, section: LEVEL_SECTIONS.PINEAPPLE, difficulty });
+    });
   });
-  addFruitLine(fruits, -700, -760, 9, (t) => Math.sin(t * Math.PI * 2) * 2.8, (t) => 1.05 + Math.sin(t * Math.PI) * 0.9);
+  // Fruit guide finale — final generated trail into the gate approach.
+  addFruitLine(
+    fruits,
+    -700,
+    -760,
+    9,
+    (t) => Math.sin(t * Math.PI * 2) * 2.8,
+    (t) => 1.05 + Math.sin(t * Math.PI) * 0.9,
+    sectionMetadata(LEVEL_SECTIONS.FRUIT_GUIDE, "finale"),
+  );
   return {
     fruits,
     health,

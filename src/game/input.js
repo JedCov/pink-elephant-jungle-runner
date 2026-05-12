@@ -1,3 +1,20 @@
+// @ts-check
+
+/**
+ * @typedef {"ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Space" | "KeyW" | "KeyA" | "KeyS" | "KeyD" | "KeyZ" | "KeyE" | "ShiftLeft" | "ShiftRight" | "Backquote"} InputCode
+ */
+
+/**
+ * @typedef {Record<InputCode, boolean>} PressedKeys
+ */
+
+/**
+ * Keyboard state consumed by gameplay systems. Arrow keys include virtual WASD mappings; Space is reserved for jump and hold-slide.
+ *
+ * @typedef {PressedKeys & { __pressed: PressedKeys }} GameKeys
+ */
+
+/** @type {InputCode[]} */
 const ALLOWED_KEYS = [
   "ArrowUp",
   "ArrowDown",
@@ -15,13 +32,19 @@ const ALLOWED_KEYS = [
   "Backquote",
 ];
 
+/**
+ * Mirror physical key presses to virtual gameplay controls.
+ *
+ * @param {GameKeys} keys
+ * @returns {void}
+ */
 function syncVirtualControls(keys) {
   const pressed = keys.__pressed;
   keys.ArrowUp = Boolean(pressed.ArrowUp || pressed.KeyW);
   keys.ArrowDown = Boolean(pressed.ArrowDown || pressed.KeyS);
   keys.ArrowLeft = Boolean(pressed.ArrowLeft || pressed.KeyA);
   keys.ArrowRight = Boolean(pressed.ArrowRight || pressed.KeyD);
-  keys.Space = Boolean(pressed.Space || pressed.ShiftLeft || pressed.ShiftRight);
+  keys.Space = Boolean(pressed.Space);
   keys.KeyZ = Boolean(pressed.KeyZ);
   keys.KeyE = Boolean(pressed.KeyE);
   keys.KeyW = Boolean(pressed.KeyW);
@@ -32,7 +55,13 @@ function syncVirtualControls(keys) {
   keys.ShiftRight = Boolean(pressed.ShiftRight);
 }
 
+/**
+ * Create the mutable key state object used by the app.
+ *
+ * @returns {GameKeys}
+ */
 export function createKeys() {
+  /** @type {GameKeys} */
   const keys = {
     ArrowUp: false,
     ArrowDown: false,
@@ -47,12 +76,21 @@ export function createKeys() {
     KeyE: false,
     ShiftLeft: false,
     ShiftRight: false,
-    __pressed: Object.fromEntries(ALLOWED_KEYS.map((code) => [code, false])),
+    Backquote: false,
+    __pressed: /** @type {PressedKeys} */ (Object.fromEntries(ALLOWED_KEYS.map((code) => [code, false]))),
   };
   syncVirtualControls(keys);
   return keys;
 }
 
+/**
+ * Update a physical key's pressed state and resync virtual controls.
+ *
+ * @param {GameKeys} keys
+ * @param {string} code
+ * @param {boolean} isPressed
+ * @returns {GameKeys}
+ */
 export function setKeyState(keys, code, isPressed) {
   if (!isAllowedKey(code)) return keys;
   keys.__pressed[code] = isPressed;
@@ -60,6 +98,10 @@ export function setKeyState(keys, code, isPressed) {
   return keys;
 }
 
+/**
+ * @param {string} code
+ * @returns {code is InputCode}
+ */
 export function isAllowedKey(code) {
-  return ALLOWED_KEYS.includes(code);
+  return ALLOWED_KEYS.includes(/** @type {InputCode} */ (code));
 }

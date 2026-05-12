@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { Icon } from "./components/Icon.jsx";
-import { CONFIG } from "./game/config.js";
+import { CAMERA_FEEDBACK, CONFIG, HUD_TIMING, MOVEMENT, PARTICLES, PICKUPS, SCORING } from "./game/config.js";
 import {
   canRetreatFromObstacle,
   enemyBox,
@@ -35,7 +35,6 @@ import {
   updatePlayerAir,
   updatePlayerSpeed,
   updatePlayerSteering,
-  startPlayerSlide,
 } from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
 import { runSelfTests } from "./game/selfTests.js";
@@ -126,6 +125,7 @@ export default function App() {
   const debugRef = useRef(false);
   const audioRef = useRef(null);
   const titleThemeRef = useRef(null);
+  const resetGameRef = useRef(null);
   const musicRef = useRef({ enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 });
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
@@ -252,7 +252,7 @@ export default function App() {
     scene.background = new THREE.Color("#102412");
     scene.fog = new THREE.Fog("#1f3a1b", 24, 132);
 
-    const camera = new THREE.PerspectiveCamera(CONFIG.cameraFov, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 360);
+    const camera = new THREE.PerspectiveCamera(CAMERA_FEEDBACK.cameraFov, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 360);
     camera.position.set(0, 8, 16);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -323,6 +323,9 @@ export default function App() {
       monkeyEye: new THREE.SphereGeometry(0.28, 12, 12),
       monkeySpike: new THREE.ConeGeometry(0.14, 0.45, 5),
       pineapple: new THREE.TorusKnotGeometry(0.38, 0.12, 80, 14),
+      cueLeaf: new THREE.DodecahedronGeometry(1, 0),
+      cueRipple: new THREE.TorusGeometry(1, 0.035, 5, 14),
+      cueGlint: new THREE.OctahedronGeometry(0.18, 0),
     };
     const sharedTreeGeometries = {
       trunk: sharedGeometries.treeTrunk,
@@ -347,6 +350,7 @@ export default function App() {
       ["OOPS!", "#ff8794", 2],
       ["HERD LIFE LOST", "#ff9aa9", 1],
       ["HERD NEEDS REST", "#ff9aa9", 1],
+      ["RECOVERING!", "#b7ffb7", 1],
     ];
 
     for (let i = 0; i < 96; i++) {
@@ -430,7 +434,7 @@ export default function App() {
       fruit.position.set(posOnPath.x, pos.y || 1.05, posOnPath.z);
       fruit.castShadow = true;
       scene.add(fruit);
-      pickups.push({ type: "fruit", mesh: fruit, active: true, x: posOnPath.x, y: pos.y || 1.05, z: posOnPath.z, radius: 0.78 });
+      pickups.push({ type: "fruit", mesh: fruit, active: true, x: posOnPath.x, y: pos.y || 1.05, z: posOnPath.z, radius: PICKUPS.fruitRadius });
     });
 
     const caneMat = new THREE.MeshStandardMaterial({ color: "#52e879", roughness: 0.45, emissive: "#154d24", emissiveIntensity: 0.7 });
@@ -444,7 +448,7 @@ export default function App() {
       group.add(cane);
       if (glow) group.add(glow);
       scene.add(group);
-      pickups.push({ type: "health", mesh: group, active: true, x: posOnPath.x, y: 1.25, z: posOnPath.z, radius: 0.95 });
+      pickups.push({ type: "health", mesh: group, active: true, x: posOnPath.x, y: 1.25, z: posOnPath.z, radius: PICKUPS.healthRadius });
     });
 
     const logMat = makeMaterial("#6a3f22");
@@ -452,8 +456,95 @@ export default function App() {
     const crateBandMat = makeMaterial("#e2b156");
     const branchLimbMat = makeMaterial("#452817");
     const branchLeafMat = makeMaterial("#17713d");
+    const cueLeafShadowMat = makeMaterial("#0b1b11", { transparent: true, opacity: 0.46, roughness: 1 });
+    const cueMudMat = makeMaterial("#3f2616", { roughness: 1 });
+    const cueCratePlankMat = makeMaterial("#b77a3d", { roughness: 0.9 });
+    const cueRippleMat = makeMaterial("#9de7ff", { transparent: true, opacity: 0.68, roughness: 0.45, emissive: "#124d66", emissiveIntensity: 0.2 });
+    const cueEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2a1c", emissive: "#ff1200", emissiveIntensity: 2.8 });
+    const CUE_PREVIEW_DISTANCE = 5.8;
+
+    function createCueGroup(localX, z, distance = CUE_PREVIEW_DISTANCE) {
+      const cueZ = z + distance;
+      const pos = worldPosition(localX, cueZ);
+      const group = new THREE.Group();
+      group.position.set(pos.x, 0, pos.z);
+      group.rotation.y = trackAngle(cueZ);
+      scene.add(group);
+      return group;
+    }
+
+    function addLeafShadowCue(branch) {
+      const cue = createCueGroup(branch.localX, branch.z, 4.6);
+      [-0.78, -0.24, 0.34, 0.86].forEach((xOffset, index) => {
+        const leaf = new THREE.Mesh(sharedGeometries.cueLeaf, cueLeafShadowMat);
+        leaf.position.set(xOffset, 0.13 + index * 0.002, (index - 1.5) * 0.34);
+        leaf.scale.set(0.54 + index * 0.08, 0.025, 0.28 + (index % 2) * 0.08);
+        leaf.rotation.y = 0.45 + index * 0.8;
+        leaf.receiveShadow = true;
+        cue.add(leaf);
+      });
+    }
+
+    function addMudSkidCue(log) {
+      const cue = createCueGroup(log.localX, log.z, 5.2);
+      [-0.48, 0.48].forEach((xOffset, index) => {
+        const skid = new THREE.Mesh(sharedGeometries.unitBox, cueMudMat);
+        skid.position.set(xOffset, 0.125, index === 0 ? 0.18 : -0.18);
+        skid.scale.set(0.22, 0.035, 1.72);
+        skid.rotation.y = index === 0 ? 0.12 : -0.12;
+        skid.receiveShadow = true;
+        cue.add(skid);
+      });
+      const smear = new THREE.Mesh(sharedGeometries.unitBox, cueMudMat);
+      smear.position.set(0, 0.12, -0.08);
+      smear.scale.set(1.45, 0.026, 0.42);
+      smear.rotation.y = -0.08;
+      smear.receiveShadow = true;
+      cue.add(smear);
+    }
+
+    function addCratePlankCue(crate) {
+      const cue = createCueGroup(crate.localX, crate.z, 4.9);
+      [-0.58, 0, 0.58].forEach((xOffset, index) => {
+        const plank = new THREE.Mesh(sharedGeometries.unitBox, cueCratePlankMat);
+        plank.position.set(xOffset, 0.18 + index * 0.015, (index - 1) * 0.28);
+        plank.scale.set(0.82, 0.08, 0.22);
+        plank.rotation.y = [-0.55, 0.18, 0.62][index];
+        plank.castShadow = true;
+        plank.receiveShadow = true;
+        cue.add(plank);
+      });
+    }
+
+    function addRippleCue(river) {
+      const cue = createCueGroup(0, river.z, 6.4);
+      [1.15, 1.85, 2.55].forEach((radius, index) => {
+        const ripple = new THREE.Mesh(sharedGeometries.cueRipple, cueRippleMat);
+        ripple.position.set(0, 0.15 + index * 0.003, (index - 1) * 0.24);
+        ripple.scale.set(radius * 1.7, radius * 0.48, 1);
+        ripple.rotation.x = Math.PI / 2;
+        ripple.receiveShadow = true;
+        cue.add(ripple);
+      });
+    }
+
+    function addMonkeyEyeCue(enemy) {
+      const cue = createCueGroup(enemy.baseLocalX, enemy.z, 5.4);
+      [-0.24, 0.24].forEach((xOffset) => {
+        const glint = new THREE.Mesh(sharedGeometries.cueGlint, cueEyeMat);
+        glint.position.set(xOffset, 0.72, 0);
+        glint.scale.set(1.0, 0.55, 0.55);
+        cue.add(glint);
+      });
+      const glow = new THREE.PointLight("#ff1600", 0.75, 4);
+      glow.position.set(0, 0.72, 0.1);
+      cue.add(glow);
+    }
+
+    LEVEL.rivers.forEach(addRippleCue);
 
     LEVEL.logs.forEach((log) => {
+      addMudSkidCue(log);
       const posOnPath = worldPosition(log.localX, log.z);
       const mesh = new THREE.Mesh(sharedGeometries.unitBox, logMat);
       mesh.position.set(posOnPath.x, log.height / 2, posOnPath.z);
@@ -465,6 +556,7 @@ export default function App() {
     });
 
     LEVEL.crates.forEach((crate) => {
+      addCratePlankCue(crate);
       const posOnPath = worldPosition(crate.localX, crate.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, crate.height / 2, posOnPath.z);
@@ -481,6 +573,7 @@ export default function App() {
     });
 
     LEVEL.branches.forEach((branch) => {
+      addLeafShadowCue(branch);
       const posOnPath = worldPosition(branch.localX, branch.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, branch.yOffset, posOnPath.z);
@@ -502,6 +595,7 @@ export default function App() {
     const monkeyBodyMat = makeMaterial("#2a1f0e", { roughness: 0.55, metalness: 0.1 });
     const monkeyEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2200", emissive: "#ff2200", emissiveIntensity: 2.5 });
     LEVEL.enemies.forEach((en) => {
+      addMonkeyEyeCue(en);
       const group = new THREE.Group();
       const posOnPath = worldPosition(en.baseLocalX, en.z);
       group.position.set(posOnPath.x, 0.9, posOnPath.z);
@@ -537,7 +631,7 @@ export default function App() {
       group.add(knot);
       if (glow) group.add(glow);
       scene.add(group);
-      collectibleMeshes.push({ mesh: group, knot, active: true, x: posOnPath.x, y: col.y, z: posOnPath.z, radius: 0.9 });
+      collectibleMeshes.push({ mesh: group, knot, active: true, x: posOnPath.x, y: col.y, z: posOnPath.z, radius: PICKUPS.pineappleRadius });
     });
 
     gate.position.set(trackCenter(LEVEL.gate.z), 0, LEVEL.gate.z);
@@ -601,6 +695,84 @@ export default function App() {
 
     const body = createPlayerBody();
 
+    function snapshotResults() {
+      const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
+      return { fruit: body.fruit, crates: body.crates, score: body.score, lives: body.lives, elapsedMs };
+    }
+
+    function resetTransientEffects() {
+      particles.splice(0).forEach((particle) => {
+        particle.active = false;
+        particle.life = 0;
+        particle.mesh.visible = false;
+      });
+      particlePool.forEach((particle) => {
+        particle.active = false;
+        particle.life = 0;
+        particle.mesh.visible = false;
+      });
+      pops.splice(0).forEach((pop) => {
+        pop.active = false;
+        pop.life = 0;
+        pop.sprite.visible = false;
+        pop.sprite.material.opacity = 0;
+      });
+      popPools.forEach((pool) => {
+        pool.forEach((pop) => {
+          pop.active = false;
+          pop.life = 0;
+          pop.sprite.visible = false;
+          pop.sprite.material.opacity = 0;
+        });
+      });
+    }
+
+    function resetSceneEntities() {
+      pickups.forEach((item) => {
+        item.active = true;
+        item.mesh.visible = true;
+      });
+      collectibleMeshes.forEach((item) => {
+        item.active = true;
+        item.mesh.visible = true;
+      });
+      enemies.forEach((enemy) => {
+        enemy.active = true;
+        enemy.mesh.visible = true;
+      });
+      colliders.forEach((obs) => {
+        obs.active = true;
+        obs.mesh.visible = true;
+      });
+      crocs.forEach((croc) => {
+        croc.active = true;
+        croc.mesh.visible = true;
+      });
+    }
+
+    function resetGame({ start = false } = {}) {
+      Object.assign(body, createPlayerBody());
+      keyRef.current = createKeys();
+      resetTransientEffects();
+      resetSceneEntities();
+      hudRefresh.values.clear();
+      hudRefresh.lastSpeedometerCharge = null;
+      hudRefresh.nextLowAt = 0;
+      musicRef.current.nextNoteTime = audioRef.current ? audioRef.current.currentTime + 0.08 : 0;
+      musicRef.current.noteIndex = 0;
+      stampedeRef.current.nextStepTime = 0;
+      startedRef.current = start;
+      completeRef.current = false;
+      gameOverRef.current = false;
+      gameStartTimeRef.current = start ? performance.now() : null;
+      setFinalResults(null);
+      setStarted(start);
+      setComplete(false);
+      setGameOver(false);
+    }
+
+    resetGameRef.current = resetGame;
+
     function activateParticle(x, y, z, colour, scale = 0.28, life = 1, velocity = {}) {
       let particle = particlePool.find((entry) => !entry.active);
       if (!particle) particle = particles.shift();
@@ -619,7 +791,7 @@ export default function App() {
       particles.push(particle);
     }
 
-    function burst(x, y, z, colour, count = 8, scale = 0.28) {
+    function burst(x, y, z, colour, count = PARTICLES.defaultBurstCount, scale = 0.28) {
       for (let i = 0; i < count; i++) activateParticle(x, y, z, colour, scale, 0.8 + Math.random() * 0.4);
     }
 
@@ -673,17 +845,26 @@ export default function App() {
 
     pickupPopPresets.forEach(([text, colour, count]) => prewarmPopText(text, colour, count));
 
+
     function loseLife() {
       body.lives = Math.max(0, body.lives - 1);
       body.health = 100;
-      body.hurtTimer = 0.75;
+      body.hurtTimer = 1.35;
       body.speed = 0;
       body.localX = 0;
       body.x = trackCenter(body.z);
+      body.yVelocity = 0;
+      body.grounded = true;
+      body.slideTimer = 0;
       popText(body.lives > 0 ? "HERD LIFE LOST" : "HERD NEEDS REST", body.x, body.y + 3.4, body.z, "#ff9aa9");
+      if (body.lives > 0) {
+        burst(body.x, body.y + 1.1, body.z, "#b7ffb7", 12, 0.2);
+        popText("RECOVERING!", body.x, body.y + 4.6, body.z, "#b7ffb7");
+      }
       playTone("hurt");
       if (body.lives <= 0 && !gameOverRef.current) {
         gameOverRef.current = true;
+        setFinalResults(snapshotResults());
         setGameOver(true);
       }
     }
@@ -693,7 +874,7 @@ export default function App() {
       body.health = Math.max(0, body.health - (croc ? 34 : 22));
       body.hurtTimer = 0.45;
       body.speed = Math.max(0, body.speed * 0.15);
-      burst(body.x, body.y + 1.1, body.z, croc ? "#53a653" : "#ff3f58", 8, 0.25);
+      burst(body.x, body.y + 1.1, body.z, croc ? "#53a653" : "#ff3f58", PARTICLES.defaultBurstCount, PARTICLES.hurtBurstScale);
       popText(croc ? "SNAP!" : "OOPS!", body.x, body.y + 3.2, body.z, croc ? "#9aff99" : "#ff8794");
       playTone(croc ? "croc" : "hurt");
       if (body.health <= 0) loseLife();
@@ -701,8 +882,7 @@ export default function App() {
 
     function completeLevel(popZ = body.z) {
       if (completeRef.current) return;
-      const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
-      const results = { fruit: body.fruit, crates: body.crates, score: body.score, lives: body.lives, elapsedMs };
+      const results = snapshotResults();
       body.completed = true;
       completeRef.current = true;
       body.speed = 0;
@@ -716,19 +896,20 @@ export default function App() {
       obs.active = false;
       obs.mesh.visible = false;
       body.crates += 1;
-      body.smashTimer = 0.18;
-      burst(obs.x, obs.y, obs.z, "#99652f", 13, 0.25);
-      burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", 5, 0.22);
-      popText("TRUNK-SMASH!", obs.x, obs.y + 2.2, obs.z, "#ffe08a");
+      body.smashTimer = MOVEMENT.smashActionDuration;
+      const pts = collectScore(SCORING.cratePoints, SCORING.crateComboWindowSeconds);
+      burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
+      burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
+      popText(`TRUNK-SMASH! +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
       playTone("smash");
     }
 
-    function collectScore(basePoints) {
+    function collectScore(basePoints, comboWindowSeconds = SCORING.comboWindowSeconds) {
       const scored = basePoints * body.multiplier;
       body.score += scored;
       body.multiplierCombo += 1;
-      body.multiplierTimer = 3.0;
-      body.multiplier = Math.min(5, 1 + Math.floor(body.multiplierCombo / 5));
+      body.multiplierTimer = Math.max(body.multiplierTimer, comboWindowSeconds);
+      body.multiplier = Math.min(SCORING.maxMultiplier, 1 + Math.floor(body.multiplierCombo / SCORING.comboPerMultiplier));
       return scored;
     }
 
@@ -829,7 +1010,7 @@ export default function App() {
     function updatePhysics(dt) {
       const k = keyRef.current;
       const playing = startedRef.current && !completeRef.current && !gameOverRef.current && body.lives > 0;
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const wasGrounded = body.grounded;
 
       tickPlayerTimers(body, dt);
@@ -873,8 +1054,6 @@ export default function App() {
         if (event === "slide") playSlideEvent();
         else playJumpEvent(event);
       }
-      if (intent.wantsSlide && startPlayerSlide(body)) playSlideEvent();
-
       const airUpdate = updatePlayerAir(body, ny, dt);
       ny = airUpdate.y;
       if (airUpdate.landed) {
@@ -948,13 +1127,13 @@ export default function App() {
           item.mesh.visible = false;
           if (item.type === "fruit") {
             body.fruit += 1;
-            addFruitLife(1);
-            const pts = collectScore(5);
-            burst(item.x, item.y, item.z, "#ffd34a", 4, 0.2);
+            addFruitLife(PICKUPS.fruitLifeAmount);
+            const pts = collectScore(SCORING.fruitPoints);
+            burst(item.x, item.y, item.z, "#ffd34a", PARTICLES.fruitCollectCount, 0.2);
             playTone("fruit");
           } else {
-            body.health = Math.min(100, body.health + 25);
-            burst(item.x, item.y, item.z, "#4ade80", 10, 0.22);
+            body.health = Math.min(100, body.health + PICKUPS.healthRestore);
+            burst(item.x, item.y, item.z, "#4ade80", PARTICLES.healBurstCount, 0.22);
             popText("SUGAR CANE!", item.x, item.y + 1.4, item.z, "#a7ffbf");
             playTone("heal");
           }
@@ -968,10 +1147,9 @@ export default function App() {
         if (body.spinTimer > 0) {
           en.active = false;
           en.mesh.visible = false;
-          const pts = collectScore(20);
-          body.multiplierTimer = 3.0;
-          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", 14, 0.22);
-          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", 6, 0.18);
+          const pts = collectScore(SCORING.monkeyPoints);
+          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", PARTICLES.monkeyBurstCount, 0.22);
+          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", PARTICLES.monkeySparkleCount, 0.18);
           popText(`MONKEY DOWN! +${pts}`, en.x, en.mesh.position.y + 2.8, en.z, "#ffcf66");
           playTone("smash");
         } else {
@@ -992,10 +1170,10 @@ export default function App() {
         if (aabb(pBox, radiusBox(col, radiusAabb))) {
           col.active = false;
           col.mesh.visible = false;
-          const pts = collectScore(50);
-          addFruitLife(20);
-          burst(col.x, col.y, col.z, "#f5a623", 16, 0.28);
-          burst(col.x, col.y + 1, col.z, "#fff8e7", 8, 0.18);
+          const pts = collectScore(SCORING.pineapplePoints);
+          addFruitLife(SCORING.pineappleFruitLifeAmount);
+          burst(col.x, col.y, col.z, "#f5a623", PARTICLES.pineappleBurstCount, 0.28);
+          burst(col.x, col.y + 1, col.z, "#fff8e7", PARTICLES.pineappleSparkleCount, 0.18);
           popText(`GOLDEN PINEAPPLE! +${pts}`, col.x, col.y + 2.4, col.z, "#f5a623");
           playTone("gate");
         }
@@ -1004,7 +1182,7 @@ export default function App() {
       if (!blocked) {
         body.localX = nextLocalX; body.x = nx; body.y = ny; body.z = nz;
       }
-      if (wasGrounded && !body.grounded && body.yVelocity <= 0) body.coyoteTimer = CONFIG.coyoteTime;
+      if (wasGrounded && !body.grounded && body.yVelocity <= 0) body.coyoteTimer = MOVEMENT.coyoteTime;
 
       body.state = selectPlayerStateLabel(body, charge);
 
@@ -1014,7 +1192,7 @@ export default function App() {
     function updateMeshes(dt, now) {
       const t = now * 0.001;
       updateCrocs(now);
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const sliding = body.slideTimer > 0;
       const hurtState = body.hurtTimer > 0;
       player.position.set(body.x, body.y, body.z);
@@ -1073,12 +1251,12 @@ export default function App() {
 
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.life -= dt * 1.7;
-        p.vy += CONFIG.gravity * 0.12 * dt;
+        p.life -= dt * PARTICLES.decayRate;
+        p.vy += MOVEMENT.gravity * PARTICLES.gravityScale * dt;
         p.mesh.position.x += p.vx * dt;
         p.mesh.position.y += p.vy * dt;
         p.mesh.position.z += p.vz * dt;
-        p.mesh.scale.multiplyScalar(1 + dt * 1.5);
+        p.mesh.scale.multiplyScalar(1 + dt * PARTICLES.growthRate);
         p.mesh.material.opacity = Math.max(0, p.life / p.startLife) * 0.62;
         if (p.life <= 0) {
           p.active = false;
@@ -1103,10 +1281,10 @@ export default function App() {
     const cameraDesired = new THREE.Vector3();
 
     function updateCamera() {
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
-      const targetFov = lerp(CONFIG.cameraFov, CONFIG.highChargeFov, charge);
-      if (Math.abs(camera.fov - targetFov) > 0.01) {
-        camera.fov = lerp(camera.fov, targetFov, 0.04);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
+      const targetFov = lerp(CAMERA_FEEDBACK.cameraFov, CAMERA_FEEDBACK.highChargeFov, charge);
+      if (Math.abs(camera.fov - targetFov) > CAMERA_FEEDBACK.fovSnapEpsilon) {
+        camera.fov = lerp(camera.fov, targetFov, CAMERA_FEEDBACK.fovLerp);
         camera.updateProjectionMatrix();
       }
       if (!startedRef.current) {
@@ -1115,14 +1293,14 @@ export default function App() {
         camera.lookAt(trackCenter(-28), 1.5, -28);
         return;
       }
-      const shake = body.hurtTimer > 0 ? (Math.random() - 0.5) * 0.42 : 0;
-      const chargeShake = charge > 0.82 ? (Math.random() - 0.5) * 0.07 : 0;
-      const lookZ = body.z - 26 - charge * 8;
-      const lookAhead = worldPosition(body.localX * 0.35, lookZ);
-      const cameraX = lerp(body.x, lookAhead.x, 0.42);
-      cameraDesired.set(cameraX + shake + chargeShake, body.y + CONFIG.cameraHeight + shake, body.z + CONFIG.cameraDistance + charge * 2);
-      camera.position.lerp(cameraDesired, CONFIG.cameraLerp);
-      camera.lookAt(lookAhead.x, body.y + 1.4, lookAhead.z);
+      const shake = body.hurtTimer > 0 ? (Math.random() - 0.5) * CAMERA_FEEDBACK.hurtShake : 0;
+      const chargeShake = charge > MOVEMENT.mightyChargeThreshold ? (Math.random() - 0.5) * CAMERA_FEEDBACK.chargeShake : 0;
+      const lookZ = body.z - CAMERA_FEEDBACK.lookAheadBase - charge * CAMERA_FEEDBACK.lookAheadChargeBoost;
+      const lookAhead = worldPosition(body.localX * CAMERA_FEEDBACK.lookAheadLocalScale, lookZ);
+      const cameraX = lerp(body.x, lookAhead.x, CAMERA_FEEDBACK.lookAheadLerp);
+      cameraDesired.set(cameraX + shake + chargeShake, body.y + CAMERA_FEEDBACK.cameraHeight + shake, body.z + CAMERA_FEEDBACK.cameraDistance + charge * CAMERA_FEEDBACK.chargeDistanceBoost);
+      camera.position.lerp(cameraDesired, CAMERA_FEEDBACK.cameraLerp);
+      camera.lookAt(lookAhead.x, body.y + CAMERA_FEEDBACK.lookAtHeightOffset, lookAhead.z);
     }
 
     function sectionLabel() {
@@ -1139,14 +1317,14 @@ export default function App() {
       const local = d % 245;
       if (!startedRef.current) return "Press Begin the Trail to wake the bright jungle.";
       if (completeRef.current) return "The Jungle Gate is open. Brilliant trumpet work!";
-      if (gameOverRef.current) return "The herd needs a breather. Refresh to try the trail again.";
+      if (gameOverRef.current) return "The herd needs a breather. Try the trail again from here.";
       if (loop === 0) {
         if (local < 14) return "Hold ↑ to build Elephant Charge.";
         if (local < 58) return "Follow the golden fruit and feel the big pink rhythm.";
         if (local < 102) return "Use ← → to sway through the jungle trail.";
         if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
         if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
-        if (local < 194) return "Hold Space or press ↓ to Belly-Slide under vines.";
+        if (local < 194) return "Hold Space to Belly-Slide under vines; press ↓ to reverse.";
         if (local < 218) return "Charge hard, press Z for Trunk-Smash, or E for a Spin Attack on monkeys.";
         if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
         return "Sugar cane restores energy after a jungle bump.";
@@ -1188,7 +1366,7 @@ export default function App() {
 
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAngle, fillEnd);
-      ctx.strokeStyle = charge > 0.82 ? "#ff89d2" : "#ffd34a";
+      ctx.strokeStyle = charge > MOVEMENT.mightyChargeThreshold ? "#ff89d2" : "#ffd34a";
       ctx.lineWidth = 10;
       ctx.lineCap = "round";
       ctx.stroke();
@@ -1207,7 +1385,7 @@ export default function App() {
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + Math.cos(needleAngle) * (r - 16), cy + Math.sin(needleAngle) * (r - 16));
-      ctx.strokeStyle = charge > 0.82 ? "#ff89d2" : "#fff8e7";
+      ctx.strokeStyle = charge > MOVEMENT.mightyChargeThreshold ? "#ff89d2" : "#fff8e7";
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       ctx.stroke();
@@ -1220,7 +1398,7 @@ export default function App() {
       ctx.font = `bold ${Math.round(size * 0.16)}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = charge > 0.82 ? "#ff89d2" : "#fff8e7";
+      ctx.fillStyle = charge > MOVEMENT.mightyChargeThreshold ? "#ff89d2" : "#fff8e7";
       ctx.fillText(`${Math.round(charge * 100)}`, cx, cy + r * 0.26);
 
       ctx.font = `bold ${Math.round(size * 0.075)}px system-ui, sans-serif`;
@@ -1229,7 +1407,7 @@ export default function App() {
     }
 
     const hudRefresh = {
-      lowIntervalMs: 1000 / 12,
+      lowIntervalMs: 1000 / HUD_TIMING.lowFrequencyRefreshFps,
       nextLowAt: 0,
       lastSpeedometerCharge: null,
       values: new Map(),
@@ -1262,7 +1440,7 @@ export default function App() {
       // Keep the visual charge bar on the animation-frame path so acceleration feels immediate.
       const chargeWidth = `${(charge * 100).toFixed(1)}%`;
       setStyleIfChanged(ui.charge, "chargeWidth", "width", chargeWidth);
-      const chargeFilter = charge > 0.82 ? "drop-shadow(0 0 8px #ff89d2)" : "none";
+      const chargeFilter = charge > MOVEMENT.mightyChargeThreshold ? "drop-shadow(0 0 8px #ff89d2)" : "none";
       setStyleIfChanged(ui.charge, "chargeFilter", "filter", chargeFilter);
 
       const fruitLifeWidth = `${body.fruitLifeCounter}%`;
@@ -1309,10 +1487,10 @@ export default function App() {
       setTextIfChanged(ui.scoreTally, "scoreTally", body.score);
 
       const roundedCharge = Math.round(charge * 100);
-      const wasSpeedometerGlowing = hudRefresh.lastSpeedometerCharge !== null && hudRefresh.lastSpeedometerCharge > 0.82;
-      const isSpeedometerGlowing = charge > 0.82;
+      const wasSpeedometerGlowing = hudRefresh.lastSpeedometerCharge !== null && hudRefresh.lastSpeedometerCharge > MOVEMENT.mightyChargeThreshold;
+      const isSpeedometerGlowing = charge > MOVEMENT.mightyChargeThreshold;
       const crossedChargeGlow = wasSpeedometerGlowing !== isSpeedometerGlowing;
-      if (hudRefresh.lastSpeedometerCharge === null || Math.abs(charge - hudRefresh.lastSpeedometerCharge) >= 0.01 || crossedChargeGlow) {
+      if (hudRefresh.lastSpeedometerCharge === null || Math.abs(charge - hudRefresh.lastSpeedometerCharge) >= HUD_TIMING.speedometerRedrawDelta || crossedChargeGlow) {
         drawSpeedometer(charge);
         hudRefresh.lastSpeedometerCharge = charge;
       }
@@ -1349,7 +1527,7 @@ export default function App() {
     }
 
     function updateDom(now) {
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       updateHighFrequencyHud(charge);
       if (now >= hudRefresh.nextLowAt) {
         hudRefresh.nextLowAt = now + hudRefresh.lowIntervalMs;
@@ -1385,6 +1563,7 @@ export default function App() {
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", blur);
       window.removeEventListener("resize", resize);
+      resetGameRef.current = null;
 
       const seenGeometries = new Set();
       const seenMaterials = new Set();
@@ -1431,15 +1610,7 @@ export default function App() {
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
-    keyRef.current = createKeys();
-    startedRef.current = true;
-    completeRef.current = false;
-    gameOverRef.current = false;
-    gameStartTimeRef.current = performance.now();
-    setFinalResults(null);
-    setStarted(true);
-    setComplete(false);
-    setGameOver(false);
+    resetGameRef.current?.({ start: true });
   };
 
   return (
@@ -1594,7 +1765,7 @@ export default function App() {
               Begin the Trail
             </button>
             <div className="mt-6 grid grid-cols-2 gap-2 text-left text-xs text-amber-50/70">
-              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space / Shift", "Leap"], ["Hold Space / Shift / ↓ / S", "Belly-Slide"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space", "Leap"], ["Hold Space", "Belly-Slide"], ["↓ / S", "Reverse"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
                 <div key={key} className="flex items-center gap-2 rounded-xl px-3 py-2"
                   style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
                   <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
@@ -1624,7 +1795,7 @@ export default function App() {
               <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
-            <button onClick={() => window.location.reload()}
+            <button onClick={startDemo}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Restart Trail
             </button>
@@ -1643,7 +1814,14 @@ export default function App() {
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-red-50/70">
               Too many jungle bumps. Restart and build Charge more carefully.
             </p>
-            <button onClick={() => window.location.reload()}
+            <div className="mt-5 flex justify-center gap-6 text-sm font-black text-red-50">
+              <span>🍋 <span>{finalResults?.fruit ?? 0}</span></span>
+              <span>📦 <span>{finalResults?.crates ?? 0}</span></span>
+              <span>⭐ <span>{finalResults?.score ?? 0}</span></span>
+              <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
+              <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
+            </div>
+            <button onClick={startDemo}
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again
             </button>

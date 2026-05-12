@@ -10,12 +10,12 @@
     "check": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "react": "latest",
-    "react-dom": "latest",
-    "three": "latest"
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "three": "0.184.0"
   },
   "devDependencies": {
-    "typescript": "latest",
-    "vite": "latest"
+    "typescript": "6.0.3",
+    "vite": "8.0.12"
   }
 }

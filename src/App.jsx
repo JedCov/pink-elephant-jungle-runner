@@ -15,6 +15,13 @@ import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js"
 
 const nl = String.fromCharCode(10);
 
+function formatElapsed(elapsedMs) {
+  const elapsed = Math.floor(elapsedMs / 1000);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
 function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
   const vertices = [];
   const uvs = [];
@@ -95,12 +102,14 @@ export default function App() {
   const musicRef = useRef({ enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 });
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
+  const finalStatsRef = useRef({ fruit: 0, crates: 0, score: 0, elapsedMs: 0 });
 
   const [started, setStarted] = useState(false);
   const [complete, setComplete] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
   const [testSummary, setTestSummary] = useState("Self-tests pending");
+  const [finalStats, setFinalStats] = useState({ fruit: 0, crates: 0, score: 0, elapsedMs: 0 });
 
   const ui = {
     health: useRef(null),
@@ -620,6 +629,23 @@ export default function App() {
       return Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ);
     }
 
+    function sweptObstaclePlayerBox(obsBox, currentBox, nextBox, nextLocalX, nextY, nextZ) {
+      const forward = body.speed > 0 && currentBox.minZ > obsBox.maxZ && nextBox.minZ <= obsBox.maxZ;
+      const backward = body.speed < 0 && currentBox.maxZ < obsBox.minZ && nextBox.maxZ >= obsBox.minZ;
+      if (!forward && !backward) return null;
+
+      const halfDepth = (nextBox.maxZ - nextBox.minZ) / 2;
+      const contactZ = forward ? obsBox.maxZ + halfDepth : obsBox.minZ - halfDepth;
+      const travelZ = nextZ - body.z;
+      const t = Math.abs(travelZ) > 0.00001 ? clamp((contactZ - body.z) / travelZ, 0, 1) : 1;
+      const contactLocalX = lerp(body.localX, nextLocalX, t);
+      const contactY = lerp(body.y, nextY, t);
+      const contactX = worldX(contactLocalX, contactZ);
+      const contactBox = playerBox(contactX, contactY, contactZ);
+
+      return aabb(contactBox, obsBox) ? contactBox : null;
+    }
+
     function isRetreatingFromObstacle(currentBox, nextBox, obstacleBox) {
       if (!aabb(currentBox, obstacleBox)) return false;
       return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - 0.001;
@@ -631,20 +657,6 @@ export default function App() {
         minY: obs.y - obs.h / 2, maxY: obs.y + obs.h / 2,
         minZ: obs.z - obs.d / 2, maxZ: obs.z + obs.d / 2,
       };
-    }
-
-    function sweptLowObstaclePlayerBox(obsBox, currentBox, nextBox, nextLocalX, nextY, nextZ) {
-      if (body.speed <= 0 || currentBox.minZ <= obsBox.maxZ || nextBox.minZ > obsBox.maxZ) return null;
-
-      const contactZ = obsBox.maxZ + (nextBox.maxZ - nextBox.minZ) / 2;
-      const travelZ = body.z - nextZ;
-      const t = travelZ > 0 ? clamp((body.z - contactZ) / travelZ, 0, 1) : 1;
-      const contactLocalX = lerp(body.localX, nextLocalX, t);
-      const contactY = lerp(body.y, nextY, t);
-      const contactX = worldX(contactLocalX, contactZ);
-      const contactBox = playerBox(contactX, contactY, contactZ);
-
-      return aabb(contactBox, obsBox) ? contactBox : null;
     }
 
     function loseLife() {
@@ -675,11 +687,15 @@ export default function App() {
 
     function completeLevel(popZ = body.z) {
       if (completeRef.current) return;
+      const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
+      const stats = { fruit: body.fruit, crates: body.crates, score: body.score, elapsedMs };
       body.completed = true;
       completeRef.current = true;
+      finalStatsRef.current = stats;
       body.speed = 0;
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
+      setFinalStats(stats);
       setComplete(true);
     }
 
@@ -943,7 +959,9 @@ export default function App() {
         if (!obs.active) continue;
         const oBox = obstacleBox(obs);
         let collisionBox = aabb(pBox, oBox) ? pBox : null;
-        if (!collisionBox && obs.type === "log") collisionBox = sweptLowObstaclePlayerBox(oBox, currentBox, pBox, nextLocalX, ny, nz);
+        if (!collisionBox && (obs.type === "log" || obs.type === "branch" || obs.type === "crate" || obs.type === "croc")) {
+          collisionBox = sweptObstaclePlayerBox(oBox, currentBox, pBox, nextLocalX, ny, nz);
+        }
         if (!collisionBox) continue;
         const canRetreat = isReversing && isRetreatingFromObstacle(currentBox, collisionBox, oBox);
         if (obs.type === "log") {
@@ -957,7 +975,7 @@ export default function App() {
           else if (!canRetreat) { hurt(false); blocked = true; }
         } else if (obs.type === "gate") {
           completeLevel(obs.z);
-          if (!canRetreat) blocked = true;
+          blocked = false;
         }
       }
 
@@ -1007,12 +1025,10 @@ export default function App() {
         }
       }
 
-      const finishTriggerStartZ = CONFIG.gateZ + CONFIG.finishTriggerDepth / 2;
-      if (playing && !completeRef.current && (nz <= finishTriggerStartZ || nz <= CONFIG.endOfCourseZ)) {
-        if (nz <= CONFIG.endOfCourseZ) {
-          nz = CONFIG.gateZ;
-          nx = worldX(nextLocalX, nz);
-        }
+      const crossedFinishPlane = body.z > LEVEL.finish.z && nz <= LEVEL.finish.z;
+      if (playing && !completeRef.current && (crossedFinishPlane || nz <= LEVEL.finish.failSafeZ)) {
+        nz = LEVEL.finish.z;
+        nx = worldX(nextLocalX, nz);
         completeLevel(nz);
         blocked = false;
       }
@@ -1313,12 +1329,13 @@ export default function App() {
       }
 
       // Score tally
-      if (ui.scoreTally.current) ui.scoreTally.current.textContent = body.score;
+      if (ui.scoreTally.current) ui.scoreTally.current.textContent = completeRef.current ? finalStatsRef.current.score : body.score;
 
       drawSpeedometer(charge);
 
-      if (ui.timerDisplay.current && gameStartTimeRef.current && startedRef.current && !completeRef.current && !gameOverRef.current) {
-        const elapsed = Math.floor((performance.now() - gameStartTimeRef.current) / 1000);
+      if (ui.timerDisplay.current && gameStartTimeRef.current && startedRef.current && !gameOverRef.current) {
+        const elapsedMs = completeRef.current ? finalStatsRef.current.elapsedMs : performance.now() - gameStartTimeRef.current;
+        const elapsed = Math.floor(elapsedMs / 1000);
         const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
         const ss = String(elapsed % 60).padStart(2, "0");
         ui.timerDisplay.current.textContent = `${mm}:${ss}`;
@@ -1328,8 +1345,8 @@ export default function App() {
       if (ui.distance.current) ui.distance.current.textContent = `${Math.abs(Math.min(0, body.z)).toFixed(0)}`;
       if (ui.fruit.current) ui.fruit.current.textContent = `${body.fruitLifeCounter}/100`;
       if (ui.fruitLife.current) ui.fruitLife.current.style.width = `${body.fruitLifeCounter}%`;
-      if (ui.fruitTally.current) ui.fruitTally.current.textContent = body.fruit;
-      if (ui.cratesTally.current) ui.cratesTally.current.textContent = body.crates;
+      if (ui.fruitTally.current) ui.fruitTally.current.textContent = completeRef.current ? finalStatsRef.current.fruit : body.fruit;
+      if (ui.cratesTally.current) ui.cratesTally.current.textContent = completeRef.current ? finalStatsRef.current.crates : body.crates;
 
       const prompt = promptText();
       if (ui.prompt.current && prompt !== body.lastPrompt) {
@@ -1379,15 +1396,24 @@ export default function App() {
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", blur);
       window.removeEventListener("resize", resize);
+      scene.traverse((object) => {
+        if (!object.isMesh && !object.isSprite) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        object.geometry?.dispose?.();
+        materials.forEach((material) => {
+          if (!material) return;
+          Object.values(material).forEach((value) => {
+            if (value && typeof value.dispose === "function" && value.isTexture) value.dispose();
+          });
+          material.dispose?.();
+        });
+      });
       renderer.dispose();
+      renderer.forceContextLoss();
       jungleTexture.dispose();
       pathTexture.dispose();
       pooledParticleGeometry.dispose();
-      particlePool.forEach((particle) => particle.mesh.material.dispose());
-      popPools.forEach((pool) => {
-        pool[0]?.tex.dispose();
-        pool.forEach((pop) => pop.sprite.material.dispose());
-      });
+      popPools.forEach((pool) => pool[0]?.tex.dispose());
       caneGeometry.dispose();
       caneMat.dispose();
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
@@ -1402,6 +1428,8 @@ export default function App() {
     completeRef.current = false;
     gameOverRef.current = false;
     gameStartTimeRef.current = performance.now();
+    finalStatsRef.current = { fruit: 0, crates: 0, score: 0, elapsedMs: 0 };
+    setFinalStats(finalStatsRef.current);
     setStarted(true);
     setComplete(false);
     setGameOver(false);
@@ -1578,9 +1606,10 @@ export default function App() {
               The herd made it through. The jungle is yours.
             </p>
             <div className="mt-5 flex justify-center gap-6 text-sm font-black text-amber-100">
-              <span>🍋 <span ref={ui.fruitTally}>—</span></span>
-              <span>📦 <span ref={ui.cratesTally}>—</span></span>
-              <span>⏱ <span ref={ui.timerDisplay}>—</span></span>
+              <span>🍋 <span ref={ui.fruitTally}>{finalStats.fruit}</span></span>
+              <span>📦 <span ref={ui.cratesTally}>{finalStats.crates}</span></span>
+              <span>⭐ <span ref={ui.scoreTally}>{finalStats.score}</span></span>
+              <span>⏱ <span ref={ui.timerDisplay}>{formatElapsed(finalStats.elapsedMs)}</span></span>
             </div>
             <button onClick={() => window.location.reload()}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">

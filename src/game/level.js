@@ -42,7 +42,18 @@ export function buildLevel() {
     collectibles.push({ localX: index % 2 === 0 ? 3.5 : -3.5, z: o - 195, y: 3.2 });
   });
   addFruitLine(fruits, -700, -760, 9, (t) => Math.sin(t * Math.PI * 2) * 2.8, (t) => 1.05 + Math.sin(t * Math.PI) * 0.9);
-  return { fruits, health, logs, crates, branches, rivers, enemies, collectibles, gate: { z: CONFIG.gateZ } };
+  return {
+    fruits,
+    health,
+    logs,
+    crates,
+    branches,
+    rivers,
+    enemies,
+    collectibles,
+    gate: { z: CONFIG.gateZ },
+    finish: { z: CONFIG.gateZ, failSafeZ: CONFIG.endOfCourseZ },
+  };
 }
 
 export const LEVEL = buildLevel();

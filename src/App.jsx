@@ -865,17 +865,18 @@ export default function App() {
       obs.mesh.visible = false;
       body.crates += 1;
       body.smashTimer = MOVEMENT.smashActionDuration;
+      const pts = collectScore(SCORING.cratePoints, SCORING.crateComboWindowSeconds);
       burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
       burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
-      popText("TRUNK-SMASH!", obs.x, obs.y + 2.2, obs.z, "#ffe08a");
+      popText(`TRUNK-SMASH! +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
       playTone("smash");
     }
 
-    function collectScore(basePoints) {
+    function collectScore(basePoints, comboWindowSeconds = SCORING.comboWindowSeconds) {
       const scored = basePoints * body.multiplier;
       body.score += scored;
       body.multiplierCombo += 1;
-      body.multiplierTimer = SCORING.comboWindowSeconds;
+      body.multiplierTimer = Math.max(body.multiplierTimer, comboWindowSeconds);
       body.multiplier = Math.min(SCORING.maxMultiplier, 1 + Math.floor(body.multiplierCombo / SCORING.comboPerMultiplier));
       return scored;
     }
@@ -1103,7 +1104,6 @@ export default function App() {
           en.active = false;
           en.mesh.visible = false;
           const pts = collectScore(SCORING.monkeyPoints);
-          body.multiplierTimer = SCORING.comboWindowSeconds;
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", PARTICLES.monkeyBurstCount, 0.22);
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", PARTICLES.monkeySparkleCount, 0.18);
           popText(`MONKEY DOWN! +${pts}`, en.x, en.mesh.position.y + 2.8, en.z, "#ffcf66");

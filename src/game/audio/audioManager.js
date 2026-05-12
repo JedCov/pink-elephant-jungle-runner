@@ -16,6 +16,28 @@ const TONE_SETTINGS = {
   thump: [62, 30, 0.16, "sine", 0.08],
 };
 
+const LAYERED_TONES = {
+  slideStart: [
+    [210, 112, 0.13, "triangle", 0.055, 0],
+    [460, 260, 0.07, "sine", 0.035, 0.012],
+  ],
+  crateSmash: [
+    [128, 42, 0.15, "sawtooth", 0.085, 0],
+    [520, 190, 0.09, "square", 0.032, 0.018],
+    [72, 36, 0.2, "sine", 0.045, 0.006],
+  ],
+  monkeyDefeat: [
+    [760, 520, 0.09, "square", 0.034, 0],
+    [980, 1320, 0.11, "triangle", 0.04, 0.035],
+    [390, 260, 0.12, "sine", 0.035, 0.012],
+  ],
+  bonusLife: [
+    [420, 630, 0.12, "sine", 0.045, 0],
+    [630, 945, 0.14, "triangle", 0.052, 0.075],
+    [945, 1260, 0.17, "sine", 0.046, 0.16],
+  ],
+};
+
 function getAudioContextConstructor() {
   if (typeof window === "undefined") return null;
   return window.AudioContext || window.webkitAudioContext || null;
@@ -71,21 +93,32 @@ export function createAudioManager() {
     music.beatSeconds = 0.2;
   }
 
-  function playTone(type, atTime = null) {
-    if (!ctx || !master || disposed) return;
-    const now = atTime ?? ctx.currentTime;
+  function scheduleToneLayer([startFrequency, endFrequency, duration, waveform, volume, delay = 0], atTime) {
+    const startTime = atTime + delay;
+    const stopTime = startTime + duration;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(master);
-    const settings = TONE_SETTINGS[type] || [250, 250, 0.1, "sine", 0.05];
-    osc.type = settings[3];
-    osc.frequency.setValueAtTime(settings[0], now);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(20, settings[1]), now + settings[2]);
-    gain.gain.setValueAtTime(settings[4], now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + settings[2]);
-    osc.start(now);
-    osc.stop(now + settings[2] + 0.03);
+    osc.type = waveform;
+    osc.frequency.setValueAtTime(Math.max(20, startFrequency), startTime);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), stopTime);
+    gain.gain.setValueAtTime(0.001, startTime);
+    gain.gain.linearRampToValueAtTime(volume, startTime + Math.min(0.012, duration * 0.25));
+    gain.gain.exponentialRampToValueAtTime(0.001, stopTime);
+    osc.start(startTime);
+    osc.stop(stopTime + 0.03);
+  }
+
+  function playTone(type, atTime = null) {
+    if (!ctx || !master || disposed) return;
+    const now = atTime ?? ctx.currentTime;
+    const layeredTone = LAYERED_TONES[type];
+    if (layeredTone) {
+      layeredTone.forEach((layer) => scheduleToneLayer(layer, now));
+      return;
+    }
+    scheduleToneLayer(TONE_SETTINGS[type] || [250, 250, 0.1, "sine", 0.05], now);
   }
 
   function updateGameplayMusic({ charge, isPlaying }) {

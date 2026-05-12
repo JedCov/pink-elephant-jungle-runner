@@ -39,6 +39,10 @@ class AppErrorBoundary extends React.Component {
 
 const rootElement = document.getElementById("root");
 
+if (!rootElement) {
+  throw new Error("Missing #root element; Pink Elephant cannot mount.");
+}
+
 createRoot(rootElement).render(
   React.createElement(React.StrictMode, null, React.createElement(AppErrorBoundary, null, React.createElement(App))),
 );

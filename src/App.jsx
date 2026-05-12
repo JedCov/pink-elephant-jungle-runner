@@ -2,8 +2,21 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { Icon } from "./components/Icon.jsx";
-import { CAMERA_FEEDBACK, COLLISION, CONFIG, HUD_TIMING, MOVEMENT, PARTICLES, PICKUPS, SCORING } from "./game/config.js";
-import { branchHitsPlayer } from "./game/collision.js";
+import { CAMERA_FEEDBACK, CONFIG, HUD_TIMING, MOVEMENT, PARTICLES, PICKUPS, SCORING } from "./game/config.js";
+import {
+  canRetreatFromObstacle,
+  enemyBox,
+  handleBranchCollision,
+  handleCrateCollision,
+  handleCrocCollision,
+  handleGateCollision,
+  handleLogCollision,
+  obstacleBox,
+  playerBox,
+  radiusBox,
+  smashBox,
+  sweptObstaclePlayerBox,
+} from "./game/collisions.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { aabb, clamp, lerp } from "./game/math.js";
@@ -832,74 +845,6 @@ export default function App() {
 
     pickupPopPresets.forEach(([text, colour, count]) => prewarmPopText(text, colour, count));
 
-    function setPlayerBox(target, nx, ny, nz) {
-      const hw = (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
-      const hh = body.slideTimer > 0 ? CONFIG.playerSize * COLLISION.slidingHitboxHeightScale : (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
-      const hd = (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
-      target.minX = nx - hw;
-      target.maxX = nx + hw;
-      target.minY = ny - hh;
-      target.maxY = ny + hh;
-      target.minZ = nz - hd;
-      target.maxZ = nz + hd;
-      return target;
-    }
-
-    function setObstacleBox(target, obs) {
-      target.minX = obs.x - obs.w / 2;
-      target.maxX = obs.x + obs.w / 2;
-      target.minY = obs.y - obs.h / 2;
-      target.maxY = obs.y + obs.h / 2;
-      target.minZ = obs.z - obs.d / 2;
-      target.maxZ = obs.z + obs.d / 2;
-      return target;
-    }
-
-    function setRadiusBox(target, item) {
-      target.minX = item.x - item.radius;
-      target.maxX = item.x + item.radius;
-      target.minY = item.y - item.radius;
-      target.maxY = item.y + item.radius;
-      target.minZ = item.z - item.radius;
-      target.maxZ = item.z + item.radius;
-      return target;
-    }
-
-    function setEnemyBox(target, en) {
-      target.minX = en.x - en.w / 2;
-      target.maxX = en.x + en.w / 2;
-      target.minY = 0;
-      target.maxY = en.h;
-      target.minZ = en.z - en.d / 2;
-      target.maxZ = en.z + en.d / 2;
-      return target;
-    }
-
-    function zOverlapDepth(a, b) {
-      return Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ);
-    }
-
-    function sweptObstaclePlayerBox(obsBox, currentBox, nextBox, nextLocalX, nextY, nextZ, contactBox) {
-      const forward = body.speed > 0 && currentBox.minZ > obsBox.maxZ && nextBox.minZ <= obsBox.maxZ;
-      const backward = body.speed < 0 && currentBox.maxZ < obsBox.minZ && nextBox.maxZ >= obsBox.minZ;
-      if (!forward && !backward) return null;
-
-      const halfDepth = (nextBox.maxZ - nextBox.minZ) / 2;
-      const contactZ = forward ? obsBox.maxZ + halfDepth : obsBox.minZ - halfDepth;
-      const travelZ = nextZ - body.z;
-      const t = Math.abs(travelZ) > 0.00001 ? clamp((contactZ - body.z) / travelZ, 0, 1) : 1;
-      const contactLocalX = lerp(body.localX, nextLocalX, t);
-      const contactY = lerp(body.y, nextY, t);
-      const contactX = worldX(contactLocalX, contactZ);
-      setPlayerBox(contactBox, contactX, contactY, contactZ);
-
-      return aabb(contactBox, obsBox) ? contactBox : null;
-    }
-
-    function isRetreatingFromObstacle(currentBox, nextBox, obstacleBox) {
-      if (!aabb(currentBox, obstacleBox)) return false;
-      return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - COLLISION.retreatOverlapEpsilon;
-    }
 
     function loseLife() {
       body.lives = Math.max(0, body.lives - 1);
@@ -1121,21 +1066,16 @@ export default function App() {
         ny = body.y;
       }
 
-      const pBox = setPlayerBox(playerAabb, nx, ny, nz);
-      const currentBox = setPlayerBox(currentAabb, body.x, body.y, body.z);
+      const pBox = playerBox(nx, ny, nz, body.slideTimer > 0, playerAabb);
+      const currentBox = playerBox(body.x, body.y, body.z, body.slideTimer > 0, currentAabb);
       const isReversing = playing && body.speed < 0 && nz > body.z;
       let blocked = false;
 
       if (body.smashActionTimer > 0) {
-        smashAabb.minX = nx - COLLISION.smashRange;
-        smashAabb.maxX = nx + COLLISION.smashRange;
-        smashAabb.minY = 0;
-        smashAabb.maxY = ny + 2.4;
-        smashAabb.minZ = nz - COLLISION.smashRange * COLLISION.smashForwardScale;
-        smashAabb.maxZ = nz + COLLISION.smashRange * COLLISION.smashBackScale;
+        smashBox(nx, ny, nz, smashAabb);
         for (const obs of colliders) {
           if (!obs.active || obs.type !== "crate") continue;
-          if (aabb(smashAabb, setObstacleBox(obstacleAabb, obs))) breakCrate(obs);
+          if (aabb(smashAabb, obstacleBox(obs, obstacleAabb))) breakCrate(obs);
         }
       }
 
@@ -1144,28 +1084,45 @@ export default function App() {
       for (let i = 0; i < crocs.length; i += 1) activeObstacles.push(crocs[i]);
       for (const obs of activeObstacles) {
         if (!obs.active) continue;
-        const oBox = setObstacleBox(obstacleAabb, obs);
+        const oBox = obstacleBox(obs, obstacleAabb);
         let collisionBox = aabb(pBox, oBox) ? pBox : null;
         if (!collisionBox && (obs.type === "log" || obs.type === "branch" || obs.type === "crate" || obs.type === "croc")) {
-          collisionBox = sweptObstaclePlayerBox(oBox, currentBox, pBox, nextLocalX, ny, nz, contactAabb);
+          collisionBox = sweptObstaclePlayerBox({
+            obstacleAabb: oBox,
+            currentBox,
+            nextBox: pBox,
+            body,
+            nextLocalX,
+            nextY: ny,
+            nextZ: nz,
+            contactBox: contactAabb,
+          });
         }
         if (!collisionBox) continue;
-        const canRetreat = isReversing && isRetreatingFromObstacle(currentBox, collisionBox, oBox);
+        const canRetreat = canRetreatFromObstacle(currentBox, collisionBox, oBox, isReversing);
         if (obs.type === "log") {
-          if (collisionBox.minY < oBox.maxY - 0.18 && !canRetreat) { hurt(false); blocked = true; }
+          const result = handleLogCollision({ collisionBox, obstacleAabb: oBox, canRetreat });
+          if (result.hurt) hurt(false);
+          blocked ||= result.blocked;
         } else if (obs.type === "branch") {
-          if (branchHitsPlayer(collisionBox, oBox) && !canRetreat) { hurt(false); blocked = true; }
+          const result = handleBranchCollision({ collisionBox, obstacleAabb: oBox, canRetreat });
+          if (result.hurt) hurt(false);
+          blocked ||= result.blocked;
         } else if (obs.type === "croc") {
-          if (!canRetreat) { hurt(true); blocked = true; }
+          const result = handleCrocCollision({ canRetreat });
+          if (result.hurt) hurt(true);
+          blocked ||= result.blocked;
         } else if (obs.type === "crate") {
-          if (charge >= COLLISION.smashChargeThreshold || body.smashActionTimer > 0) breakCrate(obs);
-          else if (!canRetreat) { hurt(false); blocked = true; }
+          const result = handleCrateCollision({ charge, smashActionActive: body.smashActionTimer > 0, canRetreat });
+          if (result.breakCrate) breakCrate(obs);
+          else if (result.hurt) hurt(false);
+          blocked ||= result.blocked;
         }
       }
 
       for (const item of pickups) {
         if (!item.active) continue;
-        if (aabb(pBox, setRadiusBox(radiusAabb, item))) {
+        if (aabb(pBox, radiusBox(item, radiusAabb))) {
           item.active = false;
           item.mesh.visible = false;
           if (item.type === "fruit") {
@@ -1186,7 +1143,7 @@ export default function App() {
       // Patrol monkey collision — spin attack defeats, otherwise hurts
       for (const en of enemies) {
         if (!en.active) continue;
-        if (!aabb(pBox, setEnemyBox(enemyAabb, en))) continue;
+        if (!aabb(pBox, enemyBox(en, enemyAabb))) continue;
         if (body.spinTimer > 0) {
           en.active = false;
           en.mesh.visible = false;
@@ -1200,8 +1157,7 @@ export default function App() {
         }
       }
 
-      const crossedFinishPlane = nz <= LEVEL.finish.z;
-      if (playing && !completeRef.current && (crossedFinishPlane || nz <= LEVEL.finish.failSafeZ)) {
+      if (handleGateCollision({ playing, complete: completeRef.current, nextZ: nz, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ })) {
         nz = LEVEL.finish.z;
         nx = worldX(nextLocalX, nz);
         completeLevel(nz);
@@ -1211,7 +1167,7 @@ export default function App() {
       // Golden pineapple collectibles — always collectible
       for (const col of collectibleMeshes) {
         if (!col.active) continue;
-        if (aabb(pBox, setRadiusBox(radiusAabb, col))) {
+        if (aabb(pBox, radiusBox(col, radiusAabb))) {
           col.active = false;
           col.mesh.visible = false;
           const pts = collectScore(SCORING.pineapplePoints);

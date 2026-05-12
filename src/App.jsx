@@ -110,6 +110,7 @@ export default function App() {
   const [gameOver, setGameOver] = useState(false);
   const [debug, setDebug] = useState(false);
   const [testSummary, setTestSummary] = useState("Self-tests pending");
+  const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
 
   const ui = {
@@ -205,7 +206,9 @@ export default function App() {
   useEffect(() => {
     const results = runSelfTests();
     const passCount = results.filter((r) => r.pass).length;
-    setTestSummary(`${passCount}/${results.length} self-tests passed`);
+    const summary = `${passCount}/${results.length} self-tests passed`;
+    testSummaryRef.current = summary;
+    setTestSummary(summary);
     if (passCount !== results.length) console.warn("Pink Elephant self-tests failed", results);
   }, []);
 
@@ -1353,7 +1356,7 @@ export default function App() {
           `Grounded ${body.grounded}  Slide ${body.slideTimer > 0}`,
           `Lives ${body.lives}  Health ${body.health}`,
           `Fruit ${body.fruitLifeCounter}/100`,
-          testSummary,
+          testSummaryRef.current,
         ].join(nl);
       }
     }
@@ -1408,7 +1411,7 @@ export default function App() {
       caneMat.dispose();
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
     };
-  }, [testSummary]);
+  }, []);
 
   const startDemo = () => {
     stopTitleTheme(0.18);

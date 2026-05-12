@@ -1646,22 +1646,24 @@ export default function App() {
       if (gameOverRef.current) return "The herd needs a breather. Try the trail again from here.";
       if (loop === 0) {
         if (local < 14) return "Hold ↑ to build Elephant Charge.";
-        if (local < 58) return "Follow the golden fruit and feel the big pink rhythm.";
-        if (local < 102) return "Use ← → to sway through the jungle trail.";
-        if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
-        if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
-        if (local < 194) return "Hold Space to Belly-Slide under vines; press ↓ to reverse.";
-        if (local < 218) return "Red-eyed banana monkeys patrol ahead — press E for a Spin Attack.";
-        if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
+        if (local < 42) return "Follow the golden fruit and feel the big pink rhythm.";
+        if (local < 64) return "Monkey patrol ahead — tap E for a Spin Attack.";
+        if (local < 96) return "Use ← → to sway through the jungle trail.";
+        if (local < 116) return "Tap Space to leap the log. Watch the shadow, not the ears.";
+        if (local < 142) return "Tap Space again in the air for a BIG Bounce.";
+        if (local < 162) return "Low vines ahead — hold Space to Belly-Slide.";
+        if (local < 192) return "Wooden crate ahead — press Z for a Trunk-Smash.";
+        if (local < 224) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
         return "Sugar cane restores energy after a jungle bump.";
       }
-      if (local < 58) return `${sectionLabel()}: build a braver Elephant Charge.`;
-      if (local < 102) return "Sway through the fruit trail. Big feet, gentle steering.";
-      if (local < 134) return "Leap the log. Keep the shadow clear.";
-      if (local < 168) return "Reach the high fruit with a BIG Bounce.";
-      if (local < 194) return "Belly-Slide low. Let the vines skim overhead.";
-      if (local < 218) return "Trunk-Smash the crate. Charge makes the jungle listen.";
-      if (local < 238) return "Crocodile creek again. Stop, read, then stampede.";
+      if (local < 42) return `${sectionLabel()}: build a braver Elephant Charge.`;
+      if (local < 64) return "Monkey patrol returning — tap E to Spin Attack.";
+      if (local < 96) return "Sway through the fruit trail. Big feet, gentle steering.";
+      if (local < 116) return "Leap the log. Keep the shadow clear.";
+      if (local < 142) return "Reach the high fruit with a BIG Bounce.";
+      if (local < 162) return "Belly-Slide low before the branch.";
+      if (local < 192) return "Trunk-Smash the crate with Z as it enters reach.";
+      if (local < 224) return "Crocodile creek again. Stop, read, then stampede.";
       return loop < 3 ? "Sugar cane ahead. Gather your elephant energy." : "Final stretch. Trumpet proudly towards the Jungle Gate!";
     }
 
@@ -2100,7 +2102,7 @@ export default function App() {
             <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>
             <h2 className="display-title mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.05em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
-              Stomp through a guided jungle corridor. Gather golden fruit, leap logs, BIG Bounce, Belly-Slide under vines, Trunk-Smash crates, and stampede past crocodiles to reach the Jungle Gate.
+              Stomp through a guided jungle corridor. Start with charge, steering, jumping, and sliding; the trail teaches tougher moves right before they matter.
             </p>
             <AudioControls audioState={audioState} onToggle={toggleAudioState} />
             <button onClick={startDemo}
@@ -2108,13 +2110,15 @@ export default function App() {
               style={{ background: "#f472b6", boxShadow: "0 0 30px rgba(244,114,182,0.45)" }}>
               Begin the Trail
             </button>
-            <div className="mt-6 grid grid-cols-2 gap-2 text-left text-xs text-amber-50/70">
-              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Sway the Trail"], ["Tap Space", "Leap"], ["Hold Space", "Belly-Slide"], ["↓ / S", "Reverse"], ["Z", "Trunk-Smash"], ["E", "Spin Attack"]].map(([key, label]) => (
-                <div key={key} className="flex items-center gap-2 rounded-xl px-3 py-2"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="w-20 shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
+            <div className="title-primary-controls mt-6 text-left text-xs text-amber-50/70" aria-label="Primary controls">
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Steer"], ["Tap Space", "Jump"], ["Hold Space", "Slide"]].map(([key, label]) => (
+                <div key={key} className="title-primary-control flex items-center gap-2 rounded-xl px-3 py-2">
+                  <span className="title-control-key shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
                 </div>
               ))}
+            </div>
+            <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
+              Advanced moves appear as trail prompts just before crates and monkey patrols.
             </div>
             <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{testSummary}</div>
           </div>

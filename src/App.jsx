@@ -112,6 +112,7 @@ export default function App() {
   const debugRef = useRef(false);
   const audioRef = useRef(null);
   const titleThemeRef = useRef(null);
+  const resetGameRef = useRef(null);
   const musicRef = useRef({ enabled: false, nextNoteTime: 0, noteIndex: 0, beatSeconds: 0.2 });
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
@@ -336,6 +337,7 @@ export default function App() {
       ["OOPS!", "#ff8794", 2],
       ["HERD LIFE LOST", "#ff9aa9", 1],
       ["HERD NEEDS REST", "#ff9aa9", 1],
+      ["RECOVERING!", "#b7ffb7", 1],
     ];
 
     for (let i = 0; i < 96; i++) {
@@ -680,6 +682,84 @@ export default function App() {
 
     const body = createPlayerBody();
 
+    function snapshotResults() {
+      const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
+      return { fruit: body.fruit, crates: body.crates, score: body.score, lives: body.lives, elapsedMs };
+    }
+
+    function resetTransientEffects() {
+      particles.splice(0).forEach((particle) => {
+        particle.active = false;
+        particle.life = 0;
+        particle.mesh.visible = false;
+      });
+      particlePool.forEach((particle) => {
+        particle.active = false;
+        particle.life = 0;
+        particle.mesh.visible = false;
+      });
+      pops.splice(0).forEach((pop) => {
+        pop.active = false;
+        pop.life = 0;
+        pop.sprite.visible = false;
+        pop.sprite.material.opacity = 0;
+      });
+      popPools.forEach((pool) => {
+        pool.forEach((pop) => {
+          pop.active = false;
+          pop.life = 0;
+          pop.sprite.visible = false;
+          pop.sprite.material.opacity = 0;
+        });
+      });
+    }
+
+    function resetSceneEntities() {
+      pickups.forEach((item) => {
+        item.active = true;
+        item.mesh.visible = true;
+      });
+      collectibleMeshes.forEach((item) => {
+        item.active = true;
+        item.mesh.visible = true;
+      });
+      enemies.forEach((enemy) => {
+        enemy.active = true;
+        enemy.mesh.visible = true;
+      });
+      colliders.forEach((obs) => {
+        obs.active = true;
+        obs.mesh.visible = true;
+      });
+      crocs.forEach((croc) => {
+        croc.active = true;
+        croc.mesh.visible = true;
+      });
+    }
+
+    function resetGame({ start = false } = {}) {
+      Object.assign(body, createPlayerBody());
+      keyRef.current = createKeys();
+      resetTransientEffects();
+      resetSceneEntities();
+      hudRefresh.values.clear();
+      hudRefresh.lastSpeedometerCharge = null;
+      hudRefresh.nextLowAt = 0;
+      musicRef.current.nextNoteTime = audioRef.current ? audioRef.current.currentTime + 0.08 : 0;
+      musicRef.current.noteIndex = 0;
+      stampedeRef.current.nextStepTime = 0;
+      startedRef.current = start;
+      completeRef.current = false;
+      gameOverRef.current = false;
+      gameStartTimeRef.current = start ? performance.now() : null;
+      setFinalResults(null);
+      setStarted(start);
+      setComplete(false);
+      setGameOver(false);
+    }
+
+    resetGameRef.current = resetGame;
+
     function activateParticle(x, y, z, colour, scale = 0.28, life = 1, velocity = {}) {
       let particle = particlePool.find((entry) => !entry.active);
       if (!particle) particle = particles.shift();
@@ -824,14 +904,22 @@ export default function App() {
     function loseLife() {
       body.lives = Math.max(0, body.lives - 1);
       body.health = 100;
-      body.hurtTimer = 0.75;
+      body.hurtTimer = 1.35;
       body.speed = 0;
       body.localX = 0;
       body.x = trackCenter(body.z);
+      body.yVelocity = 0;
+      body.grounded = true;
+      body.slideTimer = 0;
       popText(body.lives > 0 ? "HERD LIFE LOST" : "HERD NEEDS REST", body.x, body.y + 3.4, body.z, "#ff9aa9");
+      if (body.lives > 0) {
+        burst(body.x, body.y + 1.1, body.z, "#b7ffb7", 12, 0.2);
+        popText("RECOVERING!", body.x, body.y + 4.6, body.z, "#b7ffb7");
+      }
       playTone("hurt");
       if (body.lives <= 0 && !gameOverRef.current) {
         gameOverRef.current = true;
+        setFinalResults(snapshotResults());
         setGameOver(true);
       }
     }
@@ -849,8 +937,7 @@ export default function App() {
 
     function completeLevel(popZ = body.z) {
       if (completeRef.current) return;
-      const elapsedMs = gameStartTimeRef.current ? performance.now() - gameStartTimeRef.current : 0;
-      const results = { fruit: body.fruit, crates: body.crates, score: body.score, lives: body.lives, elapsedMs };
+      const results = snapshotResults();
       body.completed = true;
       completeRef.current = true;
       body.speed = 0;
@@ -1274,7 +1361,7 @@ export default function App() {
       const local = d % 245;
       if (!startedRef.current) return "Press Begin the Trail to wake the bright jungle.";
       if (completeRef.current) return "The Jungle Gate is open. Brilliant trumpet work!";
-      if (gameOverRef.current) return "The herd needs a breather. Refresh to try the trail again.";
+      if (gameOverRef.current) return "The herd needs a breather. Try the trail again from here.";
       if (loop === 0) {
         if (local < 14) return "Hold ↑ to build Elephant Charge.";
         if (local < 58) return "Follow the golden fruit and feel the big pink rhythm.";
@@ -1520,6 +1607,7 @@ export default function App() {
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", blur);
       window.removeEventListener("resize", resize);
+      resetGameRef.current = null;
 
       const seenGeometries = new Set();
       const seenMaterials = new Set();
@@ -1566,15 +1654,7 @@ export default function App() {
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
-    keyRef.current = createKeys();
-    startedRef.current = true;
-    completeRef.current = false;
-    gameOverRef.current = false;
-    gameStartTimeRef.current = performance.now();
-    setFinalResults(null);
-    setStarted(true);
-    setComplete(false);
-    setGameOver(false);
+    resetGameRef.current?.({ start: true });
   };
 
   return (
@@ -1759,7 +1839,7 @@ export default function App() {
               <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
-            <button onClick={() => window.location.reload()}
+            <button onClick={startDemo}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Restart Trail
             </button>
@@ -1778,7 +1858,14 @@ export default function App() {
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-red-50/70">
               Too many jungle bumps. Restart and build Charge more carefully.
             </p>
-            <button onClick={() => window.location.reload()}
+            <div className="mt-5 flex justify-center gap-6 text-sm font-black text-red-50">
+              <span>🍋 <span>{finalResults?.fruit ?? 0}</span></span>
+              <span>📦 <span>{finalResults?.crates ?? 0}</span></span>
+              <span>⭐ <span>{finalResults?.score ?? 0}</span></span>
+              <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
+              <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
+            </div>
+            <button onClick={startDemo}
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again
             </button>

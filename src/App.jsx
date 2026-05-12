@@ -1004,6 +1004,7 @@ export default function App() {
       musicRef.current.nextNoteTime = audioRef.current ? audioRef.current.currentTime + 0.08 : 0;
       musicRef.current.noteIndex = 0;
       stampedeRef.current.nextStepTime = 0;
+      resetCameraShake();
       startedRef.current = start;
       completeRef.current = false;
       gameOverRef.current = false;
@@ -1532,8 +1533,21 @@ export default function App() {
     }
 
     const cameraDesired = new THREE.Vector3();
+    const cameraShake = {
+      hurt: 0,
+      charge: 0,
+      phaseX: 0.4,
+      phaseY: 1.8,
+      lastHurtTimer: 0,
+    };
 
-    function updateCamera() {
+    function resetCameraShake() {
+      cameraShake.hurt = 0;
+      cameraShake.charge = 0;
+      cameraShake.lastHurtTimer = 0;
+    }
+
+    function updateCamera(dt) {
       const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const targetFov = lerp(CAMERA_FEEDBACK.cameraFov, CAMERA_FEEDBACK.highChargeFov, charge);
       if (Math.abs(camera.fov - targetFov) > CAMERA_FEEDBACK.fovSnapEpsilon) {
@@ -1546,12 +1560,32 @@ export default function App() {
         camera.lookAt(trackCenter(-28), 1.5, -28);
         return;
       }
-      const shake = body.hurtTimer > 0 ? (Math.random() - 0.5) * CAMERA_FEEDBACK.hurtShake : 0;
-      const chargeShake = charge > MOVEMENT.mightyChargeThreshold ? (Math.random() - 0.5) * CAMERA_FEEDBACK.chargeShake : 0;
+      const hurtJustStarted = body.hurtTimer > cameraShake.lastHurtTimer + dt * 0.5;
+      if (hurtJustStarted) cameraShake.hurt = CAMERA_FEEDBACK.hurtShake;
+      else if (body.hurtTimer > 0) cameraShake.hurt = Math.max(cameraShake.hurt, CAMERA_FEEDBACK.hurtShake * 0.45);
+      cameraShake.lastHurtTimer = body.hurtTimer;
+
+      const chargeIntensity = charge > MOVEMENT.mightyChargeThreshold
+        ? clamp((charge - MOVEMENT.mightyChargeThreshold) / (1 - MOVEMENT.mightyChargeThreshold), 0, 1)
+        : 0;
+      cameraShake.charge = lerp(cameraShake.charge, chargeIntensity, 1 - Math.exp(-dt * 6));
+      cameraShake.hurt *= Math.exp(-dt * 5.5);
+      cameraShake.phaseX += dt * lerp(7.5, 11.5, cameraShake.charge);
+      cameraShake.phaseY += dt * lerp(9.5, 13.0, cameraShake.charge);
+
+      const hurtOffsetX = Math.sin(cameraShake.phaseX * 2.15) * cameraShake.hurt;
+      const hurtOffsetY = Math.cos(cameraShake.phaseY * 1.85) * cameraShake.hurt * 0.7;
+      const chargeAmplitude = CAMERA_FEEDBACK.chargeShake * cameraShake.charge;
+      const chargeOffsetX = Math.sin(cameraShake.phaseX) * chargeAmplitude;
+      const chargeOffsetY = Math.sin(cameraShake.phaseY) * chargeAmplitude * 0.45;
       const lookZ = body.z - CAMERA_FEEDBACK.lookAheadBase - charge * CAMERA_FEEDBACK.lookAheadChargeBoost;
       const lookAhead = worldPosition(body.localX * CAMERA_FEEDBACK.lookAheadLocalScale, lookZ);
       const cameraX = lerp(body.x, lookAhead.x, CAMERA_FEEDBACK.lookAheadLerp);
-      cameraDesired.set(cameraX + shake + chargeShake, body.y + CAMERA_FEEDBACK.cameraHeight + shake, body.z + CAMERA_FEEDBACK.cameraDistance + charge * CAMERA_FEEDBACK.chargeDistanceBoost);
+      cameraDesired.set(
+        cameraX + hurtOffsetX + chargeOffsetX,
+        body.y + CAMERA_FEEDBACK.cameraHeight + hurtOffsetY + chargeOffsetY,
+        body.z + CAMERA_FEEDBACK.cameraDistance + charge * CAMERA_FEEDBACK.chargeDistanceBoost,
+      );
       camera.position.lerp(cameraDesired, CAMERA_FEEDBACK.cameraLerp);
       camera.lookAt(lookAhead.x, body.y + CAMERA_FEEDBACK.lookAtHeightOffset, lookAhead.z);
     }
@@ -1800,7 +1834,7 @@ export default function App() {
       }
       updatePhysics(dt);
       updateMeshes(dt, now);
-      updateCamera();
+      updateCamera(dt);
       updateDom(now);
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);

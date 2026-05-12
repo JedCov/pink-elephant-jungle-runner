@@ -331,7 +331,12 @@ export default function App() {
       fruit: new THREE.OctahedronGeometry(0.38, 0),
       unitBox: new THREE.BoxGeometry(1, 1, 1),
       cane: new THREE.CylinderGeometry(0.22, 0.22, 1.4, 8),
-      monkeyEye: new THREE.SphereGeometry(0.28, 12, 12),
+      monkeyBody: new THREE.SphereGeometry(0.72, 14, 10),
+      monkeyHead: new THREE.SphereGeometry(0.52, 14, 10),
+      monkeyEar: new THREE.SphereGeometry(0.24, 10, 8),
+      monkeyMuzzle: new THREE.SphereGeometry(0.24, 10, 8),
+      monkeyEye: new THREE.SphereGeometry(0.11, 10, 8),
+      monkeyTailSegment: new THREE.CylinderGeometry(0.065, 0.075, 0.44, 8),
       monkeySpike: new THREE.ConeGeometry(0.14, 0.45, 5),
       pineapple: new THREE.TorusKnotGeometry(0.38, 0.12, 80, 14),
       cueLeaf: new THREE.DodecahedronGeometry(1, 0),
@@ -723,30 +728,100 @@ export default function App() {
 
     const gate = new THREE.Group();
 
-    // Patrol monkey enemies — dark cube body with glowing red eye
-    const monkeyBodyMat = makeMaterial("#2a1f0e", { roughness: 0.55, metalness: 0.1 });
+    // Patrol monkey enemies — rounded jungle monkeys with dangerous red eyes
+    const monkeyBodyMat = makeMaterial("#2a1f0e", { roughness: 0.62, metalness: 0.05 });
+    const monkeyFaceMat = makeMaterial("#8a5a2a", { roughness: 0.72 });
+    const monkeyEarMat = makeMaterial("#c77a3d", { roughness: 0.7 });
+    const monkeyBananaMat = makeMaterial("#ffd84d", { roughness: 0.48, emissive: "#5a3900", emissiveIntensity: 0.28 });
+    const monkeyLeafMat = makeMaterial("#4ade80", { roughness: 0.64, emissive: "#0f3d1f", emissiveIntensity: 0.16 });
     const monkeyEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2200", emissive: "#ff2200", emissiveIntensity: 2.5 });
+
+    function addMonkeyTail(group) {
+      [
+        [-0.58, 0.08, 0.42, 0.2, 0.15],
+        [-0.78, 0.32, 0.44, -0.34, -0.08],
+        [-0.67, 0.58, 0.42, -0.95, -0.22],
+        [-0.39, 0.66, 0.35, -1.4, -0.18],
+      ].forEach(([x, y, length, rotZ, rotX]) => {
+        const segment = new THREE.Mesh(sharedGeometries.monkeyTailSegment, monkeyBodyMat);
+        segment.position.set(x, y, 0.5);
+        segment.scale.set(1, length / 0.44, 1);
+        segment.rotation.set(rotX, 0.12, rotZ);
+        segment.castShadow = true;
+        group.add(segment);
+      });
+
+      const leaf = new THREE.Mesh(sharedGeometries.cueLeaf, monkeyLeafMat);
+      leaf.position.set(-0.22, 0.72, 0.53);
+      leaf.scale.set(0.2, 0.08, 0.32);
+      leaf.rotation.set(0.45, 0.15, -0.85);
+      leaf.castShadow = true;
+      group.add(leaf);
+    }
+
+    function addBananaBadge(group) {
+      [-0.16, 0.16].forEach((xOffset, index) => {
+        const bananaArc = new THREE.Mesh(sharedGeometries.unitBox, monkeyBananaMat);
+        bananaArc.position.set(xOffset, 0.18 + index * 0.03, -0.68);
+        bananaArc.scale.set(0.1, 0.32, 0.06);
+        bananaArc.rotation.z = xOffset < 0 ? -0.55 : 0.55;
+        bananaArc.rotation.x = 0.08;
+        bananaArc.castShadow = true;
+        group.add(bananaArc);
+      });
+    }
+
     LEVEL.enemies.forEach((en) => {
       addMonkeyEyeCue(en);
       const group = new THREE.Group();
       const posOnPath = worldPosition(en.baseLocalX, en.z);
       group.position.set(posOnPath.x, 0.9, posOnPath.z);
-      const bodyBox = new THREE.Mesh(sharedGeometries.unitBox, monkeyBodyMat);
-      bodyBox.scale.set(1.4, 1.4, 1.4);
-      bodyBox.castShadow = true;
-      const eyeGlow = new THREE.Mesh(sharedGeometries.monkeyEye, monkeyEyeMat);
-      eyeGlow.position.set(0, 0.42, -0.62);
-      const eyeLight = new THREE.PointLight("#ff2200", 1.4, 5);
-      eyeLight.position.copy(eyeGlow.position);
-      // Spike crown
-      for (let s = 0; s < 4; s++) {
+
+      const body = new THREE.Mesh(sharedGeometries.monkeyBody, monkeyBodyMat);
+      body.position.set(0, -0.08, 0.03);
+      body.scale.set(0.98, 1.08, 0.9);
+      body.castShadow = true;
+      body.receiveShadow = true;
+
+      const head = new THREE.Mesh(sharedGeometries.monkeyHead, monkeyBodyMat);
+      head.position.set(0, 0.72, -0.18);
+      head.scale.set(1.05, 0.95, 0.95);
+      head.castShadow = true;
+
+      const muzzle = new THREE.Mesh(sharedGeometries.monkeyMuzzle, monkeyFaceMat);
+      muzzle.position.set(0, 0.6, -0.62);
+      muzzle.scale.set(1.45, 0.78, 0.72);
+      muzzle.castShadow = true;
+
+      [-0.46, 0.46].forEach((xOffset) => {
+        const ear = new THREE.Mesh(sharedGeometries.monkeyEar, monkeyEarMat);
+        ear.position.set(xOffset, 0.76, -0.16);
+        ear.scale.set(0.82, 1.1, 0.68);
+        ear.castShadow = true;
+        group.add(ear);
+      });
+
+      [-0.18, 0.18].forEach((xOffset) => {
+        const eyeGlow = new THREE.Mesh(sharedGeometries.monkeyEye, monkeyEyeMat);
+        eyeGlow.position.set(xOffset, 0.83, -0.63);
+        group.add(eyeGlow);
+      });
+
+      const eyeLight = new THREE.PointLight("#ff2200", 1.25, 5);
+      eyeLight.position.set(0, 0.82, -0.7);
+
+      // Small brow spikes keep the patrol enemies visibly threatening.
+      for (let s = 0; s < 3; s++) {
         const spike = new THREE.Mesh(sharedGeometries.monkeySpike, monkeyBodyMat);
-        spike.position.set(Math.cos(s * Math.PI / 2) * 0.45, 0.88, Math.sin(s * Math.PI / 2) * 0.45);
-        spike.rotation.z = Math.cos(s * Math.PI / 2) * 0.5;
-        spike.rotation.x = Math.sin(s * Math.PI / 2) * 0.5;
+        spike.position.set((s - 1) * 0.24, 1.18, -0.2);
+        spike.rotation.z = (s - 1) * 0.22;
+        spike.castShadow = true;
         group.add(spike);
       }
-      group.add(bodyBox, eyeGlow, eyeLight);
+
+      addMonkeyTail(group);
+      addBananaBadge(group);
+      group.add(body, head, muzzle, eyeLight);
       scene.add(group);
       enemies.push({ mesh: group, active: true, baseLocalX: en.baseLocalX, z: posOnPath.z, x: posOnPath.x, patrolRange: en.patrolRange, patrolSpeed: en.patrolSpeed, w: 1.5, h: 1.5, d: 1.5 });
     });
@@ -1503,7 +1578,7 @@ export default function App() {
         if (local < 134) return "Tap Space to leap the log. Watch the shadow, not the ears.";
         if (local < 168) return "Tap Space again in the air for a BIG Bounce.";
         if (local < 194) return "Hold Space to Belly-Slide under vines; press ↓ to reverse.";
-        if (local < 218) return "Charge hard, press Z for Trunk-Smash, or E for a Spin Attack on monkeys.";
+        if (local < 218) return "Red-eyed banana monkeys patrol ahead — press E for a Spin Attack.";
         if (local < 238) return "Crocodile creek ahead. Stop, read the jaws, then charge.";
         return "Sugar cane restores energy after a jungle bump.";
       }

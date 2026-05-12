@@ -70,27 +70,30 @@ export function runSelfTests() {
   assert("level finish plane matches configured finish line", LEVEL.finish.z === CONFIG.finishLineZ && CONFIG.finishLineZ === CONFIG.gateZ);
   assert("level finish failsafe is beyond the gate", LEVEL.finish.failSafeZ < LEVEL.finish.z);
 
-  const representativeLog = LEVEL.logs.find((log) => log.z === -120);
-  const representativeLogPosition = worldPosition(representativeLog.localX, representativeLog.z);
-  const representativeLogBox = obstacleBox({
-    x: representativeLogPosition.x,
-    y: representativeLog.height / 2,
-    z: representativeLogPosition.z,
-    w: representativeLog.width,
-    h: representativeLog.height,
-    d: representativeLog.depth,
-  });
-  const jumpingLogPlayerBox = playerBox(
-    representativeLogPosition.x,
-    representativeLog.height - 0.17 + (CONFIG.playerSize * CONFIG.hitboxScale) / 2,
-    representativeLogPosition.z,
-    false,
-  );
-  const logResult = handleLogCollision({ collisionBox: jumpingLogPlayerBox, obstacleAabb: representativeLogBox });
-  assert(
-    "log jump clearance avoids damage while overlapping horizontally",
-    aabb(jumpingLogPlayerBox, representativeLogBox) && !logResult.hurt && !logResult.blocked,
-  );
+  const representativeLog = LEVEL.logs[0];
+  assert("level has at least one log obstacle", Boolean(representativeLog));
+  if (representativeLog) {
+    const representativeLogPosition = worldPosition(representativeLog.localX, representativeLog.z);
+    const representativeLogBox = obstacleBox({
+      x: representativeLogPosition.x,
+      y: representativeLog.height / 2,
+      z: representativeLogPosition.z,
+      w: representativeLog.width,
+      h: representativeLog.height,
+      d: representativeLog.depth,
+    });
+    const jumpingLogPlayerBox = playerBox(
+      representativeLogPosition.x,
+      representativeLog.height - 0.17 + (CONFIG.playerSize * CONFIG.hitboxScale) / 2,
+      representativeLogPosition.z,
+      false,
+    );
+    const logResult = handleLogCollision({ collisionBox: jumpingLogPlayerBox, obstacleAabb: representativeLogBox });
+    assert(
+      "log jump clearance avoids damage while overlapping horizontally",
+      aabb(jumpingLogPlayerBox, representativeLogBox) && !logResult.hurt && !logResult.blocked,
+    );
+  }
 
   const directBox = makeBoxCollider({ x: 4, y: 5, z: 6, w: 2, h: 4, d: 6 });
   assert(
@@ -98,63 +101,69 @@ export function runSelfTests() {
     directBox.minX === 3 && directBox.maxX === 5 && directBox.minY === 3 && directBox.maxY === 7 && directBox.minZ === 3 && directBox.maxZ === 9,
   );
 
-  const representativeBranch = LEVEL.branches.find((branch) => branch.z === -182);
-  const representativeBranchPosition = worldPosition(representativeBranch.localX, representativeBranch.z);
-  const representativeBranchBox = obstacleBox({
-    x: representativeBranchPosition.x,
-    y: representativeBranch.yOffset,
-    z: representativeBranchPosition.z,
-    w: representativeBranch.width,
-    h: representativeBranch.height,
-    d: representativeBranch.depth,
-  });
-  const standingBranchPlayerBox = playerBox(
-    representativeBranchPosition.x,
-    CONFIG.playerSize / 2,
-    representativeBranchPosition.z,
-    false,
-  );
-  const slidingBranchPlayerBox = playerBox(
-    representativeBranchPosition.x,
-    CONFIG.playerSize / 2,
-    representativeBranchPosition.z,
-    true,
-  );
+  const representativeBranch = LEVEL.branches[0];
+  assert("level has at least one branch obstacle", Boolean(representativeBranch));
+  if (representativeBranch) {
+    const representativeBranchPosition = worldPosition(representativeBranch.localX, representativeBranch.z);
+    const representativeBranchBox = obstacleBox({
+      x: representativeBranchPosition.x,
+      y: representativeBranch.yOffset,
+      z: representativeBranchPosition.z,
+      w: representativeBranch.width,
+      h: representativeBranch.height,
+      d: representativeBranch.depth,
+    });
+    const standingBranchPlayerBox = playerBox(
+      representativeBranchPosition.x,
+      CONFIG.playerSize / 2,
+      representativeBranchPosition.z,
+      false,
+    );
+    const slidingBranchPlayerBox = playerBox(
+      representativeBranchPosition.x,
+      CONFIG.playerSize / 2,
+      representativeBranchPosition.z,
+      true,
+    );
 
-  assert(
-    "standing player clips representative branch",
-    aabb(standingBranchPlayerBox, representativeBranchBox) && branchHitsPlayer(standingBranchPlayerBox, representativeBranchBox),
-  );
-  assert(
-    "sliding player box clears representative branch",
-    !aabb(slidingBranchPlayerBox, representativeBranchBox) && !branchHitsPlayer(slidingBranchPlayerBox, representativeBranchBox),
-  );
-  const branchSlideResult = handleBranchCollision({ collisionBox: slidingBranchPlayerBox, obstacleAabb: representativeBranchBox });
-  assert(
-    "branch slide clearance handler avoids damage",
-    !branchSlideResult.hurt && !branchSlideResult.blocked,
-  );
+    assert(
+      "standing player clips representative branch",
+      aabb(standingBranchPlayerBox, representativeBranchBox) && branchHitsPlayer(standingBranchPlayerBox, representativeBranchBox),
+    );
+    assert(
+      "sliding player box clears representative branch",
+      !aabb(slidingBranchPlayerBox, representativeBranchBox) && !branchHitsPlayer(slidingBranchPlayerBox, representativeBranchBox),
+    );
+    const branchSlideResult = handleBranchCollision({ collisionBox: slidingBranchPlayerBox, obstacleAabb: representativeBranchBox });
+    assert(
+      "branch slide clearance handler avoids damage",
+      !branchSlideResult.hurt && !branchSlideResult.blocked,
+    );
+  }
   assert(
     "branch challenge repeats at expected z sections",
-    [-182, -427, -672].every((z) => LEVEL.branches.some((branch) => branch.z === z)),
+    [-148, -393, -638].every((z) => LEVEL.branches.some((branch) => branch.z === z)),
   );
 
-  const representativeCrate = LEVEL.crates.find((crate) => crate.z === -206);
-  const representativeCratePosition = worldPosition(representativeCrate.localX, representativeCrate.z);
-  const representativeCrateBox = obstacleBox({
-    x: representativeCratePosition.x,
-    y: representativeCrate.height / 2,
-    z: representativeCratePosition.z,
-    w: representativeCrate.width,
-    h: representativeCrate.height,
-    d: representativeCrate.depth,
-  });
-  const crateSmashRange = smashBox(representativeCratePosition.x, CONFIG.playerSize / 2, representativeCratePosition.z + CONFIG.smashRange, {});
-  const crateSmashResult = handleCrateCollision({ charge: 0, smashActionActive: true });
-  assert(
-    "crate smash range overlaps and handler breaks crate",
-    aabb(crateSmashRange, representativeCrateBox) && crateSmashResult.breakCrate && !crateSmashResult.blocked,
-  );
+  const representativeCrate = LEVEL.crates[0];
+  assert("level has at least one smash crate", Boolean(representativeCrate));
+  if (representativeCrate) {
+    const representativeCratePosition = worldPosition(representativeCrate.localX, representativeCrate.z);
+    const representativeCrateBox = obstacleBox({
+      x: representativeCratePosition.x,
+      y: representativeCrate.height / 2,
+      z: representativeCratePosition.z,
+      w: representativeCrate.width,
+      h: representativeCrate.height,
+      d: representativeCrate.depth,
+    });
+    const crateSmashRange = smashBox(representativeCratePosition.x, CONFIG.playerSize / 2, representativeCratePosition.z + CONFIG.smashRange, {});
+    const crateSmashResult = handleCrateCollision({ charge: 0, smashActionActive: true });
+    assert(
+      "crate smash range overlaps and handler breaks crate",
+      aabb(crateSmashRange, representativeCrateBox) && crateSmashResult.breakCrate && !crateSmashResult.blocked,
+    );
+  }
 
   assert(
     "finish trigger behaviour completes at gate plane only while playing",

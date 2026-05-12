@@ -37,11 +37,12 @@ import {
   updatePlayerSteering,
 } from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
-import { addLeaderboardEntry, rankLeaderboardEntries } from "./game/leaderboard.js";
 import {
+  addLeaderboardEntry,
   isLeaderboardAvailable,
-  loadLeaderboard,
+  loadLeaderboard as loadSharedLeaderboard,
   normalizeInitials,
+  rankLeaderboardEntries,
   submitLeaderboardEntry,
   validateInitials,
 } from "./game/leaderboard.js";
@@ -217,6 +218,8 @@ function rankLegacyLeaderboardEntry(entries, result) {
 function insertLegacyLeaderboardEntry(entries, entry) {
   return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
 }
+
+const INITIALS_LENGTH = 3;
 
 function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
   const vertices = [];
@@ -459,7 +462,7 @@ export default function App() {
     let cancelled = false;
     async function refreshLeaderboard() {
       setLeaderboardStatus((status) => ({ ...status, loading: true, error: null }));
-      const result = await loadLeaderboard();
+      const result = await loadSharedLeaderboard();
       if (cancelled) return;
       setLeaderboardStatus({
         entries: result.entries,
@@ -1253,7 +1256,6 @@ export default function App() {
       gameStartTimeRef.current = start ? performance.now() : null;
       setFinalResults(null);
       setInitials("");
-      setPendingLeaderboardResult(null);
       setStarted(start);
       setComplete(false);
       setGameOver(false);
@@ -1361,6 +1363,7 @@ export default function App() {
           setPendingLeaderboardResult(results);
           setInitials("");
         }
+        setInitials("");
         setGameOver(true);
       }
     }
@@ -1391,6 +1394,7 @@ export default function App() {
         setPendingLeaderboardResult(results);
         setInitials("");
       }
+      setInitials("");
       setComplete(true);
     }
 
@@ -2555,8 +2559,6 @@ export default function App() {
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             {renderLeaderboardPanel("#fde68a")}
-            {renderInitialsForm()}
-            {renderLeaderboard()}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Restart Trail
@@ -2584,8 +2586,6 @@ export default function App() {
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             {renderLeaderboardPanel("#fecaca")}
-            {renderInitialsForm("red")}
-            {renderLeaderboard("red")}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again

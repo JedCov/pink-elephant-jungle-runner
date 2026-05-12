@@ -2322,21 +2322,18 @@ export default function App() {
         </div>
       )}
       {started && !complete && !gameOver && (
-        <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2"
-          style={{ background: "linear-gradient(to bottom, rgba(10,18,10,0.72) 0%, transparent 100%)" }}>
-          <div className="flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
+        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2">
+          <div className="hud-tally-cluster flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
             <span>🍋 <span ref={ui.fruitTally}>0</span></span>
             <span className="text-amber-100/30">·</span>
             <span>📦 <span ref={ui.cratesTally}>0</span></span>
             <span className="text-amber-100/30">·</span>
             <span>⭐ <span ref={ui.scoreTally}>0</span></span>
           </div>
-          <div ref={ui.sectionBadge} className="rounded-full px-4 py-1 text-xs font-black uppercase tracking-[0.28em] text-emerald-200"
-            style={{ background: "rgba(20,50,25,0.70)", border: "1px solid rgba(100,220,130,0.22)" }}>
+          <div ref={ui.sectionBadge} className="hud-section-pill rounded-full px-4 py-1 text-xs font-black uppercase tracking-[0.28em] text-emerald-200">
             Learning Trail
           </div>
-          <div className="flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100"
-            style={{ background: "rgba(20,15,8,0.72)", border: "1px solid rgba(255,200,80,0.22)" }}>
+          <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
             <Icon label="⏱" />
             <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
             <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
@@ -2346,8 +2343,7 @@ export default function App() {
 
       {/* LEFT PANEL — stamina, lives, charge, state */}
       {started && !complete && !gameOver && (
-        <div className="pointer-events-none absolute left-3 top-12 z-10 w-52"
-          style={{ background: "rgba(10,18,10,0.72)", border: "1px solid rgba(246,210,138,0.22)", borderRadius: "1.25rem", padding: "0.85rem 1rem" }}>
+        <div className="hud-primary-panel pointer-events-none absolute left-3 top-12 z-20 w-52">
           <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
             <Icon label="⚡" size={12} /> Energy
           </div>
@@ -2396,8 +2392,7 @@ export default function App() {
 
       {/* RIGHT PANEL — depth, next life */}
       {started && !complete && !gameOver && (
-        <div className="pointer-events-none absolute right-3 top-12 z-10 w-48"
-          style={{ background: "rgba(10,18,10,0.72)", border: "1px solid rgba(246,210,138,0.22)", borderRadius: "1.25rem", padding: "0.85rem 1rem" }}>
+        <div className="hud-secondary-panel pointer-events-none absolute right-3 top-12 z-10 w-48">
           <div className="mb-2 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200/70">
             <Icon label="🧭" size={12} /> Trail Depth
           </div>
@@ -2423,14 +2418,12 @@ export default function App() {
 
       {/* BOTTOM CENTRE — prompt + speedometer */}
       {started && !complete && !gameOver && (
-        <div className="pointer-events-none absolute bottom-5 left-1/2 z-10 flex flex-col items-center gap-2"
-          style={{ transform: "translateX(-50%)" }}>
+        <div className="hud-prompt-layer pointer-events-none absolute bottom-5 left-1/2 z-20 flex flex-col items-center gap-2">
           <div ref={ui.prompt}
-            className="overflow-hidden text-ellipsis whitespace-nowrap rounded-full px-5 py-2 text-center text-sm font-black tracking-wide text-amber-50"
-            style={{ background: "rgba(10,18,10,0.80)", border: "1px solid rgba(246,210,138,0.28)", maxWidth: "min(520px, 92vw)" }}>
+            className="hud-prompt overflow-hidden text-ellipsis whitespace-nowrap rounded-full px-5 py-2 text-center text-sm font-black tracking-wide text-amber-50">
             Hold ↑ to build Elephant Charge.
           </div>
-          <canvas ref={ui.speedo} width={120} height={120} style={{ display: "block" }} />
+          <canvas ref={ui.speedo} className="hud-speedometer" width={120} height={120} />
         </div>
       )}
 

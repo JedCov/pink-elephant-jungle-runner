@@ -588,3 +588,145 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+
+/* Gameplay HUD visual hierarchy: critical survival/action cues stay bright,
+   progress counters remain available but recede from the playfield. */
+.hud-top-strip {
+  background: linear-gradient(to bottom, rgba(8, 14, 8, 0.48) 0%, rgba(8, 14, 8, 0.18) 52%, transparent 100%);
+}
+
+.hud-tally-cluster {
+  color: rgba(254, 243, 199, 0.58);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  opacity: 0.78;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.36);
+}
+
+.hud-section-pill {
+  background: rgba(16, 40, 22, 0.46);
+  border: 1px solid rgba(100, 220, 130, 0.14);
+  color: rgba(167, 243, 208, 0.62);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+}
+
+.hud-timer-pill {
+  background: rgba(20, 15, 8, 0.44);
+  border: 1px solid rgba(255, 200, 80, 0.14);
+  color: rgba(254, 243, 199, 0.72);
+  font-size: 0.75rem;
+}
+
+.hud-primary-panel {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 137, 210, 0.20), transparent 9rem),
+    rgba(8, 16, 9, 0.84);
+  border: 1px solid rgba(246, 210, 138, 0.34);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.26),
+    0 0 28px rgba(236, 72, 153, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  padding: 0.95rem 1.05rem;
+}
+
+.hud-primary-panel .h-3 {
+  height: 0.9rem;
+}
+
+.hud-secondary-panel {
+  background: rgba(8, 16, 9, 0.46);
+  border: 1px solid rgba(246, 210, 138, 0.13);
+  border-radius: 1.25rem;
+  color: rgba(255, 251, 235, 0.66);
+  opacity: 0.76;
+  padding: 0.72rem 0.85rem;
+}
+
+.hud-secondary-panel .text-2xl {
+  color: rgba(254, 243, 199, 0.70);
+  font-size: 1.25rem;
+  line-height: 1.45rem;
+}
+
+.hud-prompt-layer {
+  transform: translateX(-50%);
+}
+
+.hud-prompt {
+  background: rgba(8, 16, 9, 0.88);
+  border: 1px solid rgba(246, 210, 138, 0.42);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28), 0 0 22px rgba(250, 204, 21, 0.10);
+  font-size: clamp(0.9rem, 1.6vw, 1.08rem);
+  max-width: min(560px, 92vw);
+  padding: 0.65rem 1.45rem;
+}
+
+.hud-speedometer {
+  display: block;
+  height: 96px;
+  opacity: 0.68;
+  width: 96px;
+}
+
+@media (max-width: 720px), (max-height: 640px) {
+  .hud-top-strip {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+
+  .hud-tally-cluster,
+  .hud-section-pill,
+  .hud-timer-pill {
+    font-size: 0.6rem;
+  }
+
+  .hud-primary-panel {
+    left: 0.6rem;
+    top: 2.6rem;
+    width: min(12.25rem, 52vw);
+    padding: 0.72rem 0.78rem;
+  }
+
+  .hud-secondary-panel {
+    right: 0.6rem;
+    top: 2.6rem;
+    width: min(10rem, 42vw);
+    padding: 0.55rem 0.65rem;
+  }
+
+  .hud-prompt-layer {
+    bottom: 0.85rem;
+    width: min(94vw, 28rem);
+  }
+
+  .hud-prompt {
+    max-width: 100%;
+    padding: 0.58rem 1rem;
+  }
+
+  .hud-speedometer {
+    display: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .hud-section-pill {
+    display: none;
+  }
+
+  .hud-top-strip {
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .hud-tally-cluster {
+    gap: 0.38rem;
+  }
+
+  .hud-primary-panel,
+  .hud-secondary-panel {
+    top: 2.25rem;
+  }
+}

@@ -300,11 +300,11 @@ function scheduleStep(ctx, output, event, time, stepSeconds) {
   schedulePercussion(ctx, output, event.noise, time);
 }
 
-export function createTitleThemePlayer(ctx) {
+export function createTitleThemePlayer(ctx, output = ctx.destination) {
   const stepSeconds = 60 / TEMPO_BPM / 2;
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, ctx.currentTime);
-  master.connect(ctx.destination);
+  master.connect(output);
 
   let timer = null;
   let playing = false;
@@ -345,7 +345,11 @@ export function createTitleThemePlayer(ctx) {
 
   function dispose() {
     stop(0.05);
-    window.setTimeout(() => master.disconnect(), 80);
+    try {
+      master.disconnect();
+    } catch {
+      // Already disconnected.
+    }
   }
 
   return { start, stop, dispose, get playing() { return playing; } };

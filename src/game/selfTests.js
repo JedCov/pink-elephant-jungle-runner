@@ -4,7 +4,7 @@ import { applyFruitLifeCounter } from "./fruitLife.js";
 import { createKeys, setKeyState } from "./input.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
-import { CONFIG } from "./config.js";
+import { CONFIG, MOVEMENT } from "./config.js";
 import { LEVEL } from "./level.js";
 import {
   createPlayerBody,
@@ -117,23 +117,23 @@ export function runSelfTests() {
   const jumpEvent = triggerJumpOrDoubleJump(jumpBody, true);
   assert(
     "player helper starts a ground jump",
-    jumpEvent === "ground" && !jumpBody.grounded && jumpBody.yVelocity === CONFIG.jumpVelocity && jumpBody.jumpBufferTimer === 0,
+    jumpEvent === "ground" && !jumpBody.grounded && jumpBody.yVelocity === MOVEMENT.jumpVelocity && jumpBody.jumpBufferTimer === 0,
   );
 
   const doubleJumpBody = createPlayerBody({ grounded: false, coyoteTimer: 0, doubleUsed: false });
   const doubleJumpEvent = triggerJumpOrDoubleJump(doubleJumpBody, true);
   assert(
     "player helper starts a double jump while airborne",
-    doubleJumpEvent === "double" && doubleJumpBody.doubleUsed && doubleJumpBody.yVelocity === CONFIG.doubleJumpVelocity,
+    doubleJumpEvent === "double" && doubleJumpBody.doubleUsed && doubleJumpBody.yVelocity === MOVEMENT.doubleJumpVelocity,
   );
 
   const slideBody = createPlayerBody({ speed: 8 });
   const slideKeys = createKeys();
   slideKeys.Space = true;
-  const slideEvents = updateJumpAndSlideInput(slideBody, slideKeys, CONFIG.slideHoldThreshold, true);
+  const slideEvents = updateJumpAndSlideInput(slideBody, slideKeys, MOVEMENT.slideHoldThreshold, true);
   assert(
     "player helper converts held action into slide",
-    slideEvents.includes("slide") && slideBody.slideTimer === CONFIG.slideDuration && !slideBody.bufferedSlide,
+    slideEvents.includes("slide") && slideBody.slideTimer === MOVEMENT.slideDuration && !slideBody.bufferedSlide,
   );
 
   const reverseBody = createPlayerBody();
@@ -143,7 +143,7 @@ export function runSelfTests() {
   updatePlayerSpeed(reverseBody, 0.5, true, reverseIntent);
   assert(
     "player helper accelerates reverse from rest",
-    reverseIntent.wantsReverse && !reverseIntent.wantsSlide && reverseBody.speed < 0 && reverseBody.speed >= -CONFIG.reverseMaxSpeed,
+    reverseIntent.wantsReverse && !reverseIntent.wantsSlide && reverseBody.speed < 0 && reverseBody.speed >= -MOVEMENT.reverseMaxSpeed,
   );
 
   assert(
@@ -155,7 +155,7 @@ export function runSelfTests() {
 
   assert(
     "player state labels include speed and end states",
-    selectPlayerStateLabel(createPlayerBody({ speed: CONFIG.maxSpeed }), 1) === "Mighty Charge"
+    selectPlayerStateLabel(createPlayerBody({ speed: MOVEMENT.maxSpeed }), 1) === "Mighty Charge"
       && selectPlayerStateLabel(createPlayerBody({ completed: true, lives: 0 }), 0) === "Jungle Gate"
       && selectPlayerStateLabel(createPlayerBody({ lives: 0 }), 0) === "Herd Resting",
   );

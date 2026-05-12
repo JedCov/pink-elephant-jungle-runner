@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { Icon } from "./components/Icon.jsx";
-import { CONFIG } from "./game/config.js";
+import { CAMERA_FEEDBACK, COLLISION, CONFIG, HUD_TIMING, MOVEMENT, PARTICLES, PICKUPS, SCORING } from "./game/config.js";
 import { branchHitsPlayer } from "./game/collision.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
@@ -239,7 +239,7 @@ export default function App() {
     scene.background = new THREE.Color("#102412");
     scene.fog = new THREE.Fog("#1f3a1b", 24, 132);
 
-    const camera = new THREE.PerspectiveCamera(CONFIG.cameraFov, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 360);
+    const camera = new THREE.PerspectiveCamera(CAMERA_FEEDBACK.cameraFov, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 360);
     camera.position.set(0, 8, 16);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -417,7 +417,7 @@ export default function App() {
       fruit.position.set(posOnPath.x, pos.y || 1.05, posOnPath.z);
       fruit.castShadow = true;
       scene.add(fruit);
-      pickups.push({ type: "fruit", mesh: fruit, active: true, x: posOnPath.x, y: pos.y || 1.05, z: posOnPath.z, radius: 0.78 });
+      pickups.push({ type: "fruit", mesh: fruit, active: true, x: posOnPath.x, y: pos.y || 1.05, z: posOnPath.z, radius: PICKUPS.fruitRadius });
     });
 
     const caneMat = new THREE.MeshStandardMaterial({ color: "#52e879", roughness: 0.45, emissive: "#154d24", emissiveIntensity: 0.7 });
@@ -431,7 +431,7 @@ export default function App() {
       group.add(cane);
       if (glow) group.add(glow);
       scene.add(group);
-      pickups.push({ type: "health", mesh: group, active: true, x: posOnPath.x, y: 1.25, z: posOnPath.z, radius: 0.95 });
+      pickups.push({ type: "health", mesh: group, active: true, x: posOnPath.x, y: 1.25, z: posOnPath.z, radius: PICKUPS.healthRadius });
     });
 
     const logMat = makeMaterial("#6a3f22");
@@ -524,7 +524,7 @@ export default function App() {
       group.add(knot);
       if (glow) group.add(glow);
       scene.add(group);
-      collectibleMeshes.push({ mesh: group, knot, active: true, x: posOnPath.x, y: col.y, z: posOnPath.z, radius: 0.9 });
+      collectibleMeshes.push({ mesh: group, knot, active: true, x: posOnPath.x, y: col.y, z: posOnPath.z, radius: PICKUPS.pineappleRadius });
     });
 
     gate.position.set(trackCenter(LEVEL.gate.z), 0, LEVEL.gate.z);
@@ -606,7 +606,7 @@ export default function App() {
       particles.push(particle);
     }
 
-    function burst(x, y, z, colour, count = 8, scale = 0.28) {
+    function burst(x, y, z, colour, count = PARTICLES.defaultBurstCount, scale = 0.28) {
       for (let i = 0; i < count; i++) activateParticle(x, y, z, colour, scale, 0.8 + Math.random() * 0.4);
     }
 
@@ -661,9 +661,9 @@ export default function App() {
     pickupPopPresets.forEach(([text, colour, count]) => prewarmPopText(text, colour, count));
 
     function setPlayerBox(target, nx, ny, nz) {
-      const hw = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-      const hh = body.slideTimer > 0 ? CONFIG.playerSize * 0.25 : (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
-      const hd = (CONFIG.playerSize * CONFIG.hitboxScale) / 2;
+      const hw = (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
+      const hh = body.slideTimer > 0 ? CONFIG.playerSize * COLLISION.slidingHitboxHeightScale : (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
+      const hd = (CONFIG.playerSize * COLLISION.hitboxScale) / 2;
       target.minX = nx - hw;
       target.maxX = nx + hw;
       target.minY = ny - hh;
@@ -726,7 +726,7 @@ export default function App() {
 
     function isRetreatingFromObstacle(currentBox, nextBox, obstacleBox) {
       if (!aabb(currentBox, obstacleBox)) return false;
-      return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - 0.001;
+      return zOverlapDepth(nextBox, obstacleBox) < zOverlapDepth(currentBox, obstacleBox) - COLLISION.retreatOverlapEpsilon;
     }
 
     function loseLife() {
@@ -749,7 +749,7 @@ export default function App() {
       body.health = Math.max(0, body.health - (croc ? 34 : 22));
       body.hurtTimer = 0.45;
       body.speed = Math.max(0, body.speed * 0.15);
-      burst(body.x, body.y + 1.1, body.z, croc ? "#53a653" : "#ff3f58", 8, 0.25);
+      burst(body.x, body.y + 1.1, body.z, croc ? "#53a653" : "#ff3f58", PARTICLES.defaultBurstCount, PARTICLES.hurtBurstScale);
       popText(croc ? "SNAP!" : "OOPS!", body.x, body.y + 3.2, body.z, croc ? "#9aff99" : "#ff8794");
       playTone(croc ? "croc" : "hurt");
       if (body.health <= 0) loseLife();
@@ -772,9 +772,9 @@ export default function App() {
       obs.active = false;
       obs.mesh.visible = false;
       body.crates += 1;
-      body.smashTimer = 0.18;
-      burst(obs.x, obs.y, obs.z, "#99652f", 13, 0.25);
-      burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", 5, 0.22);
+      body.smashTimer = MOVEMENT.smashActionDuration;
+      burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
+      burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
       popText("TRUNK-SMASH!", obs.x, obs.y + 2.2, obs.z, "#ffe08a");
       playTone("smash");
     }
@@ -783,8 +783,8 @@ export default function App() {
       const scored = basePoints * body.multiplier;
       body.score += scored;
       body.multiplierCombo += 1;
-      body.multiplierTimer = 3.0;
-      body.multiplier = Math.min(5, 1 + Math.floor(body.multiplierCombo / 5));
+      body.multiplierTimer = SCORING.comboWindowSeconds;
+      body.multiplier = Math.min(SCORING.maxMultiplier, 1 + Math.floor(body.multiplierCombo / SCORING.comboPerMultiplier));
       return scored;
     }
 
@@ -885,7 +885,7 @@ export default function App() {
     function updatePhysics(dt) {
       const k = keyRef.current;
       const playing = startedRef.current && !completeRef.current && !gameOverRef.current && body.lives > 0;
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const wasGrounded = body.grounded;
 
       tickPlayerTimers(body, dt);
@@ -949,12 +949,12 @@ export default function App() {
       let blocked = false;
 
       if (body.smashActionTimer > 0) {
-        smashAabb.minX = nx - CONFIG.smashRange;
-        smashAabb.maxX = nx + CONFIG.smashRange;
+        smashAabb.minX = nx - COLLISION.smashRange;
+        smashAabb.maxX = nx + COLLISION.smashRange;
         smashAabb.minY = 0;
         smashAabb.maxY = ny + 2.4;
-        smashAabb.minZ = nz - CONFIG.smashRange * 1.4;
-        smashAabb.maxZ = nz + CONFIG.smashRange * 0.35;
+        smashAabb.minZ = nz - COLLISION.smashRange * COLLISION.smashForwardScale;
+        smashAabb.maxZ = nz + COLLISION.smashRange * COLLISION.smashBackScale;
         for (const obs of colliders) {
           if (!obs.active || obs.type !== "crate") continue;
           if (aabb(smashAabb, setObstacleBox(obstacleAabb, obs))) breakCrate(obs);
@@ -980,7 +980,7 @@ export default function App() {
         } else if (obs.type === "croc") {
           if (!canRetreat) { hurt(true); blocked = true; }
         } else if (obs.type === "crate") {
-          if (charge >= CONFIG.smashChargeThreshold || body.smashActionTimer > 0) breakCrate(obs);
+          if (charge >= COLLISION.smashChargeThreshold || body.smashActionTimer > 0) breakCrate(obs);
           else if (!canRetreat) { hurt(false); blocked = true; }
         }
       }
@@ -992,13 +992,13 @@ export default function App() {
           item.mesh.visible = false;
           if (item.type === "fruit") {
             body.fruit += 1;
-            addFruitLife(1);
-            const pts = collectScore(5);
-            burst(item.x, item.y, item.z, "#ffd34a", 4, 0.2);
+            addFruitLife(PICKUPS.fruitLifeAmount);
+            const pts = collectScore(SCORING.fruitPoints);
+            burst(item.x, item.y, item.z, "#ffd34a", PARTICLES.fruitCollectCount, 0.2);
             playTone("fruit");
           } else {
-            body.health = Math.min(100, body.health + 25);
-            burst(item.x, item.y, item.z, "#4ade80", 10, 0.22);
+            body.health = Math.min(100, body.health + PICKUPS.healthRestore);
+            burst(item.x, item.y, item.z, "#4ade80", PARTICLES.healBurstCount, 0.22);
             popText("SUGAR CANE!", item.x, item.y + 1.4, item.z, "#a7ffbf");
             playTone("heal");
           }
@@ -1012,10 +1012,10 @@ export default function App() {
         if (body.spinTimer > 0) {
           en.active = false;
           en.mesh.visible = false;
-          const pts = collectScore(20);
-          body.multiplierTimer = 3.0;
-          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", 14, 0.22);
-          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", 6, 0.18);
+          const pts = collectScore(SCORING.monkeyPoints);
+          body.multiplierTimer = SCORING.comboWindowSeconds;
+          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", PARTICLES.monkeyBurstCount, 0.22);
+          burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", PARTICLES.monkeySparkleCount, 0.18);
           popText(`MONKEY DOWN! +${pts}`, en.x, en.mesh.position.y + 2.8, en.z, "#ffcf66");
           playTone("smash");
         } else {
@@ -1037,10 +1037,10 @@ export default function App() {
         if (aabb(pBox, setRadiusBox(radiusAabb, col))) {
           col.active = false;
           col.mesh.visible = false;
-          const pts = collectScore(50);
-          addFruitLife(20);
-          burst(col.x, col.y, col.z, "#f5a623", 16, 0.28);
-          burst(col.x, col.y + 1, col.z, "#fff8e7", 8, 0.18);
+          const pts = collectScore(SCORING.pineapplePoints);
+          addFruitLife(SCORING.pineappleFruitLifeAmount);
+          burst(col.x, col.y, col.z, "#f5a623", PARTICLES.pineappleBurstCount, 0.28);
+          burst(col.x, col.y + 1, col.z, "#fff8e7", PARTICLES.pineappleSparkleCount, 0.18);
           popText(`GOLDEN PINEAPPLE! +${pts}`, col.x, col.y + 2.4, col.z, "#f5a623");
           playTone("gate");
         }
@@ -1049,7 +1049,7 @@ export default function App() {
       if (!blocked) {
         body.localX = nextLocalX; body.x = nx; body.y = ny; body.z = nz;
       }
-      if (wasGrounded && !body.grounded && body.yVelocity <= 0) body.coyoteTimer = CONFIG.coyoteTime;
+      if (wasGrounded && !body.grounded && body.yVelocity <= 0) body.coyoteTimer = MOVEMENT.coyoteTime;
 
       body.state = selectPlayerStateLabel(body, charge);
 
@@ -1059,7 +1059,7 @@ export default function App() {
     function updateMeshes(dt, now) {
       const t = now * 0.001;
       updateCrocs(now);
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const sliding = body.slideTimer > 0;
       const hurtState = body.hurtTimer > 0;
       player.position.set(body.x, body.y, body.z);
@@ -1118,12 +1118,12 @@ export default function App() {
 
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.life -= dt * 1.7;
-        p.vy += CONFIG.gravity * 0.12 * dt;
+        p.life -= dt * PARTICLES.decayRate;
+        p.vy += MOVEMENT.gravity * PARTICLES.gravityScale * dt;
         p.mesh.position.x += p.vx * dt;
         p.mesh.position.y += p.vy * dt;
         p.mesh.position.z += p.vz * dt;
-        p.mesh.scale.multiplyScalar(1 + dt * 1.5);
+        p.mesh.scale.multiplyScalar(1 + dt * PARTICLES.growthRate);
         p.mesh.material.opacity = Math.max(0, p.life / p.startLife) * 0.62;
         if (p.life <= 0) {
           p.active = false;
@@ -1148,10 +1148,10 @@ export default function App() {
     const cameraDesired = new THREE.Vector3();
 
     function updateCamera() {
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
-      const targetFov = lerp(CONFIG.cameraFov, CONFIG.highChargeFov, charge);
-      if (Math.abs(camera.fov - targetFov) > 0.01) {
-        camera.fov = lerp(camera.fov, targetFov, 0.04);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
+      const targetFov = lerp(CAMERA_FEEDBACK.cameraFov, CAMERA_FEEDBACK.highChargeFov, charge);
+      if (Math.abs(camera.fov - targetFov) > CAMERA_FEEDBACK.fovSnapEpsilon) {
+        camera.fov = lerp(camera.fov, targetFov, CAMERA_FEEDBACK.fovLerp);
         camera.updateProjectionMatrix();
       }
       if (!startedRef.current) {
@@ -1160,14 +1160,14 @@ export default function App() {
         camera.lookAt(trackCenter(-28), 1.5, -28);
         return;
       }
-      const shake = body.hurtTimer > 0 ? (Math.random() - 0.5) * 0.42 : 0;
-      const chargeShake = charge > 0.82 ? (Math.random() - 0.5) * 0.07 : 0;
-      const lookZ = body.z - 26 - charge * 8;
-      const lookAhead = worldPosition(body.localX * 0.35, lookZ);
-      const cameraX = lerp(body.x, lookAhead.x, 0.42);
-      cameraDesired.set(cameraX + shake + chargeShake, body.y + CONFIG.cameraHeight + shake, body.z + CONFIG.cameraDistance + charge * 2);
-      camera.position.lerp(cameraDesired, CONFIG.cameraLerp);
-      camera.lookAt(lookAhead.x, body.y + 1.4, lookAhead.z);
+      const shake = body.hurtTimer > 0 ? (Math.random() - 0.5) * CAMERA_FEEDBACK.hurtShake : 0;
+      const chargeShake = charge > MOVEMENT.mightyChargeThreshold ? (Math.random() - 0.5) * CAMERA_FEEDBACK.chargeShake : 0;
+      const lookZ = body.z - CAMERA_FEEDBACK.lookAheadBase - charge * CAMERA_FEEDBACK.lookAheadChargeBoost;
+      const lookAhead = worldPosition(body.localX * CAMERA_FEEDBACK.lookAheadLocalScale, lookZ);
+      const cameraX = lerp(body.x, lookAhead.x, CAMERA_FEEDBACK.lookAheadLerp);
+      cameraDesired.set(cameraX + shake + chargeShake, body.y + CAMERA_FEEDBACK.cameraHeight + shake, body.z + CAMERA_FEEDBACK.cameraDistance + charge * CAMERA_FEEDBACK.chargeDistanceBoost);
+      camera.position.lerp(cameraDesired, CAMERA_FEEDBACK.cameraLerp);
+      camera.lookAt(lookAhead.x, body.y + CAMERA_FEEDBACK.lookAtHeightOffset, lookAhead.z);
     }
 
     function sectionLabel() {
@@ -1233,7 +1233,7 @@ export default function App() {
 
       ctx.beginPath();
       ctx.arc(cx, cy, r, startAngle, fillEnd);
-      ctx.strokeStyle = charge > 0.82 ? "#ff89d2" : "#ffd34a";
+      ctx.strokeStyle = charge > MOVEMENT.mightyChargeThreshold ? "#ff89d2" : "#ffd34a";
       ctx.lineWidth = 10;
       ctx.lineCap = "round";
       ctx.stroke();
@@ -1252,7 +1252,7 @@ export default function App() {
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + Math.cos(needleAngle) * (r - 16), cy + Math.sin(needleAngle) * (r - 16));
-      ctx.strokeStyle = charge > 0.82 ? "#ff89d2" : "#fff8e7";
+      ctx.strokeStyle = charge > MOVEMENT.mightyChargeThreshold ? "#ff89d2" : "#fff8e7";
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       ctx.stroke();
@@ -1265,7 +1265,7 @@ export default function App() {
       ctx.font = `bold ${Math.round(size * 0.16)}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = charge > 0.82 ? "#ff89d2" : "#fff8e7";
+      ctx.fillStyle = charge > MOVEMENT.mightyChargeThreshold ? "#ff89d2" : "#fff8e7";
       ctx.fillText(`${Math.round(charge * 100)}`, cx, cy + r * 0.26);
 
       ctx.font = `bold ${Math.round(size * 0.075)}px system-ui, sans-serif`;
@@ -1274,7 +1274,7 @@ export default function App() {
     }
 
     const hudRefresh = {
-      lowIntervalMs: 1000 / 12,
+      lowIntervalMs: 1000 / HUD_TIMING.lowFrequencyRefreshFps,
       nextLowAt: 0,
       lastSpeedometerCharge: null,
       values: new Map(),
@@ -1307,7 +1307,7 @@ export default function App() {
       // Keep the visual charge bar on the animation-frame path so acceleration feels immediate.
       const chargeWidth = `${(charge * 100).toFixed(1)}%`;
       setStyleIfChanged(ui.charge, "chargeWidth", "width", chargeWidth);
-      const chargeFilter = charge > 0.82 ? "drop-shadow(0 0 8px #ff89d2)" : "none";
+      const chargeFilter = charge > MOVEMENT.mightyChargeThreshold ? "drop-shadow(0 0 8px #ff89d2)" : "none";
       setStyleIfChanged(ui.charge, "chargeFilter", "filter", chargeFilter);
 
       const fruitLifeWidth = `${body.fruitLifeCounter}%`;
@@ -1354,10 +1354,10 @@ export default function App() {
       setTextIfChanged(ui.scoreTally, "scoreTally", body.score);
 
       const roundedCharge = Math.round(charge * 100);
-      const wasSpeedometerGlowing = hudRefresh.lastSpeedometerCharge !== null && hudRefresh.lastSpeedometerCharge > 0.82;
-      const isSpeedometerGlowing = charge > 0.82;
+      const wasSpeedometerGlowing = hudRefresh.lastSpeedometerCharge !== null && hudRefresh.lastSpeedometerCharge > MOVEMENT.mightyChargeThreshold;
+      const isSpeedometerGlowing = charge > MOVEMENT.mightyChargeThreshold;
       const crossedChargeGlow = wasSpeedometerGlowing !== isSpeedometerGlowing;
-      if (hudRefresh.lastSpeedometerCharge === null || Math.abs(charge - hudRefresh.lastSpeedometerCharge) >= 0.01 || crossedChargeGlow) {
+      if (hudRefresh.lastSpeedometerCharge === null || Math.abs(charge - hudRefresh.lastSpeedometerCharge) >= HUD_TIMING.speedometerRedrawDelta || crossedChargeGlow) {
         drawSpeedometer(charge);
         hudRefresh.lastSpeedometerCharge = charge;
       }
@@ -1394,7 +1394,7 @@ export default function App() {
     }
 
     function updateDom(now) {
-      const charge = clamp(body.speed / CONFIG.maxSpeed, 0, 1);
+      const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       updateHighFrequencyHud(charge);
       if (now >= hudRefresh.nextLowAt) {
         hudRefresh.nextLowAt = now + hudRefresh.lowIntervalMs;

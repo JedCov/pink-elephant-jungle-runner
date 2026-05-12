@@ -1,4 +1,4 @@
-import { aabb, clamp, lerp } from "./math.js";
+import { aabb, clamp, createSeededRandom, lerp } from "./math.js";
 import {
   branchHitsPlayer,
   handleBranchCollision,
@@ -32,6 +32,21 @@ export function runSelfTests() {
   assert("clamp caps high values", clamp(12, 0, 10) === 10);
   assert("clamp caps low values", clamp(-2, 0, 10) === 0);
   assert("lerp halfway", lerp(0, 10, 0.5) === 5);
+
+  const seededA = createSeededRandom(1234);
+  const seededB = createSeededRandom(1234);
+  const seededC = createSeededRandom(4321);
+  const seededSequenceA = Array.from({ length: 8 }, () => seededA());
+  const seededSequenceB = Array.from({ length: 8 }, () => seededB());
+  const seededSequenceC = Array.from({ length: 8 }, () => seededC());
+  assert(
+    "seeded RNG repeats the same organic sequence for a seed",
+    seededSequenceA.every((value, index) => value === seededSequenceB[index] && value >= 0 && value < 1),
+  );
+  assert(
+    "seeded RNG changes sequence for a different seed",
+    seededSequenceA.some((value, index) => value !== seededSequenceC[index]),
+  );
 
   assert(
     "aabb detects overlap",

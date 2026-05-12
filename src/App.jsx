@@ -1486,26 +1486,45 @@ export default function App() {
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", blur);
       window.removeEventListener("resize", resize);
+
+      const seenGeometries = new Set();
+      const seenMaterials = new Set();
+      const seenTextures = new Set();
+
+      const collectTexture = (value) => {
+        if (!value) return;
+        if (Array.isArray(value)) {
+          value.forEach(collectTexture);
+          return;
+        }
+        if (value.isTexture && typeof value.dispose === "function") {
+          seenTextures.add(value);
+        }
+      };
+
+      const collectMaterial = (material) => {
+        if (!material) return;
+        if (Array.isArray(material)) {
+          material.forEach(collectMaterial);
+          return;
+        }
+        if (seenMaterials.has(material)) return;
+        seenMaterials.add(material);
+        Object.values(material).forEach(collectTexture);
+      };
+
       scene.traverse((object) => {
-        if (!object.isMesh && !object.isSprite) return;
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        object.geometry?.dispose?.();
-        materials.forEach((material) => {
-          if (!material) return;
-          Object.values(material).forEach((value) => {
-            if (value && typeof value.dispose === "function" && value.isTexture) value.dispose();
-          });
-          material.dispose?.();
-        });
+        if (object.isMesh && object.geometry && typeof object.geometry.dispose === "function") {
+          seenGeometries.add(object.geometry);
+        }
+        collectMaterial(object.material);
       });
+
+      seenGeometries.forEach((geometry) => geometry.dispose());
+      seenMaterials.forEach((material) => material.dispose?.());
+      seenTextures.forEach((texture) => texture.dispose());
       renderer.dispose();
       renderer.forceContextLoss();
-      jungleTexture.dispose();
-      pathTexture.dispose();
-      pooledParticleGeometry.dispose();
-      popPools.forEach((pool) => pool[0]?.tex.dispose());
-      caneGeometry.dispose();
-      caneMat.dispose();
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
     };
   }, []);

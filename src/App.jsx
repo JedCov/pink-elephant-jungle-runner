@@ -37,11 +37,12 @@ import {
   updatePlayerSteering,
 } from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
-import { addLeaderboardEntry, rankLeaderboardEntries } from "./game/leaderboard.js";
 import {
+  addLeaderboardEntry,
   isLeaderboardAvailable,
-  loadLeaderboard,
+  loadLeaderboard as loadSharedLeaderboard,
   normalizeInitials,
+  rankLeaderboardEntries,
   submitLeaderboardEntry,
   validateInitials,
 } from "./game/leaderboard.js";
@@ -71,6 +72,8 @@ function saveLeaderboardEntries(entries) {
 
 function formatLeaderboardDate(date) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(date));
+}
+
 const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
 
 function readStoredAudioState() {
@@ -150,71 +153,7 @@ function formatElapsed(elapsedMs) {
   return `${mm}:${ss}`;
 }
 
-const LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard";
-const MAX_LEADERBOARD_ENTRIES = 20;
 const INITIALS_LENGTH = 3;
-
-function normalizeInitials(value) {
-  return String(value ?? "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, INITIALS_LENGTH);
-}
-
-function normalizeLeaderboardEntry(entry) {
-  if (!entry || typeof entry !== "object") return null;
-  const initials = normalizeInitials(entry.initials);
-  const score = Number(entry.score);
-  const elapsedMs = Number(entry.elapsedMs);
-  if (initials.length !== INITIALS_LENGTH || !Number.isFinite(score) || !Number.isFinite(elapsedMs)) return null;
-  return {
-    initials,
-    score,
-    elapsedMs,
-    fruit: Number.isFinite(Number(entry.fruit)) ? Number(entry.fruit) : undefined,
-    crates: Number.isFinite(Number(entry.crates)) ? Number(entry.crates) : undefined,
-    lives: Number.isFinite(Number(entry.lives)) ? Number(entry.lives) : undefined,
-    date: typeof entry.date === "string" ? entry.date : undefined,
-  };
-}
-
-function sortLeaderboardEntries(entries) {
-  return [...entries].sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
-}
-
-function loadLeaderboard() {
-  try {
-    if (typeof window === "undefined" || !window.localStorage) return [];
-    const stored = window.localStorage.getItem(LEADERBOARD_STORAGE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return sortLeaderboardEntries(parsed.map(normalizeLeaderboardEntry).filter(Boolean)).slice(0, MAX_LEADERBOARD_ENTRIES);
-  } catch (error) {
-    console.warn("Unable to load leaderboard", error);
-    return [];
-  }
-}
-
-function saveLeaderboard(entries) {
-  try {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
-  } catch (error) {
-    console.warn("Unable to save leaderboard", error);
-  }
-}
-
-function rankLeaderboardEntry(entries, result) {
-  if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.elapsedMs)) return -1;
-  const ranked = sortLeaderboardEntries([...entries, result]);
-  const rank = ranked.indexOf(result);
-  return rank >= 0 && rank < MAX_LEADERBOARD_ENTRIES ? rank : -1;
-}
-
-function insertLeaderboardEntry(entries, entry) {
-  return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
-}
 
 function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ = -824, step = 3.2) {
   const vertices = [];
@@ -315,10 +254,6 @@ export default function App() {
     source: isLeaderboardAvailable() ? "remote" : "local",
     error: null,
   });
-  const [leaderboard, setLeaderboard] = useState(() => loadLeaderboard());
-  const leaderboardRef = useRef(leaderboard);
-  const [initials, setInitials] = useState("");
-  const [pendingLeaderboardResult, setPendingLeaderboardResult] = useState(null);
   const [audioState, setAudioState] = useState(readStoredAudioState);
 
   const ui = {
@@ -390,8 +325,6 @@ export default function App() {
   }
 
   useEffect(() => {
-    leaderboardRef.current = leaderboard;
-  }, [leaderboard]);
     audioManagerRef.current?.setAudioState(audioState);
     writeStoredAudioState(audioState);
   }, [audioState]);
@@ -423,7 +356,7 @@ export default function App() {
     let cancelled = false;
     async function refreshLeaderboard() {
       setLeaderboardStatus((status) => ({ ...status, loading: true, error: null }));
-      const result = await loadLeaderboard();
+      const result = await loadSharedLeaderboard();
       if (cancelled) return;
       setLeaderboardStatus({
         entries: result.entries,
@@ -1215,7 +1148,6 @@ export default function App() {
       gameStartTimeRef.current = start ? performance.now() : null;
       setFinalResults(null);
       setInitials("");
-      setPendingLeaderboardResult(null);
       setStarted(start);
       setComplete(false);
       setGameOver(false);
@@ -1317,11 +1249,7 @@ export default function App() {
         const results = snapshotResults();
         recordLeaderboardResult(results);
         setFinalResults(results);
-        setFinalResults(results);
-        if (rankLeaderboardEntry(leaderboardRef.current, results) !== -1) {
-          setPendingLeaderboardResult(results);
-          setInitials("");
-        }
+        setInitials("");
         setGameOver(true);
       }
     }
@@ -1347,10 +1275,7 @@ export default function App() {
       playTone("gate");
       recordLeaderboardResult(results);
       setFinalResults(results);
-      if (rankLeaderboardEntry(leaderboardRef.current, results) !== -1) {
-        setPendingLeaderboardResult(results);
-        setInitials("");
-      }
+      setInitials("");
       setComplete(true);
     }
 
@@ -2177,101 +2102,6 @@ export default function App() {
       </p>
     </div>
   );
-  const normalizedInitials = normalizeInitials(initials);
-  const initialsReady = normalizedInitials.length === INITIALS_LENGTH;
-
-  function submitLeaderboardInitials(event) {
-    event.preventDefault();
-    if (!pendingLeaderboardResult || !initialsReady) return;
-
-    const entry = {
-      initials: normalizedInitials,
-      score: pendingLeaderboardResult.score,
-      elapsedMs: pendingLeaderboardResult.elapsedMs,
-      fruit: pendingLeaderboardResult.fruit,
-      crates: pendingLeaderboardResult.crates,
-      lives: pendingLeaderboardResult.lives,
-      date: new Date().toISOString(),
-    };
-    const nextEntries = insertLeaderboardEntry(leaderboardRef.current, entry);
-    saveLeaderboard(nextEntries);
-    leaderboardRef.current = nextEntries;
-    setLeaderboard(nextEntries);
-    setPendingLeaderboardResult(null);
-  }
-
-  function renderInitialsForm(theme = "amber") {
-    if (!pendingLeaderboardResult) return null;
-    const accent = theme === "red" ? "text-red-50" : "text-amber-50";
-    const buttonClass = theme === "red" ? "bg-red-100 text-red-950" : "bg-amber-200 text-slate-950";
-
-    return (
-      <form onSubmit={submitLeaderboardInitials} className={`mx-auto mt-6 max-w-sm rounded-2xl p-4 ${accent}`}
-        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)" }}>
-        <label htmlFor={`leaderboard-initials-${theme}`} className="block text-sm font-black">
-          You made the Top 20! Enter your initials.
-        </label>
-        <div className="mt-3 flex items-center justify-center gap-3">
-          <input id={`leaderboard-initials-${theme}`} value={initials}
-            onChange={(event) => setInitials(normalizeInitials(event.target.value))}
-            maxLength={INITIALS_LENGTH} inputMode="text" autoComplete="off" autoFocus
-            className="w-24 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none focus:border-white/70"
-            aria-label="Leaderboard initials" />
-          <button type="submit" disabled={!initialsReady}
-            className={`rounded-full px-5 py-2 text-sm font-black transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${buttonClass}`}>
-            Submit
-          </button>
-        </div>
-      </form>
-    );
-  }
-
-  function renderLeaderboard(theme = "amber") {
-    const isRed = theme === "red";
-    const headingClass = isRed ? "text-red-100" : "text-amber-100";
-    const mutedClass = isRed ? "text-red-50/60" : "text-amber-50/60";
-    const tableClass = isRed ? "text-red-50" : "text-amber-50";
-
-    return (
-      <div className="mx-auto mt-6 w-full max-w-2xl rounded-2xl p-4 text-left"
-        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}>
-        <h3 className={`text-center text-sm font-black uppercase tracking-[0.22em] ${headingClass}`}>Top 20 Leaderboard</h3>
-        {leaderboard.length === 0 ? (
-          <p className={`mt-3 text-center text-sm ${mutedClass}`}>No trail legends yet. Be the first!</p>
-        ) : (
-          <div className="mt-3 max-h-60 overflow-y-auto pr-1">
-            <table className={`w-full border-separate border-spacing-y-1 text-xs ${tableClass}`}>
-              <thead className={mutedClass}>
-                <tr>
-                  <th className="px-2 py-1 text-left">Rank</th>
-                  <th className="px-2 py-1 text-left">Initials</th>
-                  <th className="px-2 py-1 text-right">Score</th>
-                  <th className="px-2 py-1 text-right">Time</th>
-                  <th className="px-2 py-1 text-right">Fruit</th>
-                  <th className="px-2 py-1 text-right">Crates</th>
-                  <th className="px-2 py-1 text-right">Lives</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((entry, index) => (
-                  <tr key={`${entry.initials}-${entry.score}-${entry.elapsedMs}-${entry.date ?? index}`} style={{ background: "rgba(0,0,0,0.18)" }}>
-                    <td className="rounded-l-lg px-2 py-1 font-black">#{index + 1}</td>
-                    <td className="px-2 py-1 font-black tracking-[0.16em]">{entry.initials}</td>
-                    <td className="px-2 py-1 text-right font-black">{entry.score}</td>
-                    <td className="px-2 py-1 text-right">{formatElapsed(entry.elapsedMs)}</td>
-                    <td className="px-2 py-1 text-right">{entry.fruit ?? "—"}</td>
-                    <td className="px-2 py-1 text-right">{entry.crates ?? "—"}</td>
-                    <td className="rounded-r-lg px-2 py-1 text-right">{entry.lives ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
@@ -2409,10 +2239,8 @@ export default function App() {
       {!started && !complete && !gameOver && !sceneError && (
         <section className="absolute inset-0 z-30 flex items-center justify-center px-6"
           style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(15,28,12,0.45) 50%, rgba(0,0,0,0.8) 100%)", backdropFilter: "blur(2px)" }}>
-          <div className="w-full max-w-xl rounded-[2rem] p-8 text-center"
-            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
           <div className="w-full max-w-3xl rounded-[2rem] p-8 text-center"
-            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)" }}>
+            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
             <div className="mb-2 text-xs font-black uppercase tracking-[0.38em] text-emerald-200/75">Three-Loop Jungle Trial</div>
             <div className="title-elephant-badge mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
               aria-label="Pink elephant mascot" role="img">
@@ -2471,7 +2299,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            {renderLeaderboard()}
+            </div>
             <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
               Advanced moves appear as trail prompts just before crates and monkey patrols.
             </div>
@@ -2500,8 +2328,6 @@ export default function App() {
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             {renderLeaderboardPanel("#fde68a")}
-            {renderInitialsForm()}
-            {renderLeaderboard()}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Restart Trail
@@ -2529,8 +2355,6 @@ export default function App() {
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
             {renderLeaderboardPanel("#fecaca")}
-            {renderInitialsForm("red")}
-            {renderLeaderboard("red")}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again

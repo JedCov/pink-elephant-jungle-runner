@@ -433,3 +433,57 @@ button {
   transform: rotate(8deg);
   z-index: 7;
 }
+
+.app-fallback-screen {
+  min-height: 100vh;
+  width: 100vw;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(244, 114, 182, 0.2), transparent 28rem),
+    linear-gradient(180deg, #102412 0%, #07180f 100%);
+  color: #fffbeb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.app-fallback-card {
+  width: min(34rem, 100%);
+  border: 1px solid rgba(251, 207, 232, 0.36);
+  border-radius: 2rem;
+  background: linear-gradient(145deg, rgba(28, 49, 31, 0.94), rgba(55, 19, 47, 0.9));
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 2rem;
+  text-align: center;
+}
+
+.app-fallback-card h1 {
+  margin: 0.5rem 0 0;
+  color: #f9a8d4;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  line-height: 1.05;
+}
+
+.app-fallback-card p {
+  margin: 1rem auto 0;
+  max-width: 28rem;
+  color: rgba(255, 251, 235, 0.76);
+  line-height: 1.6;
+}
+
+.app-fallback-card pre {
+  margin: 1.25rem 0 0;
+  overflow: auto;
+  border-radius: 1rem;
+  background: rgba(5, 15, 9, 0.68);
+  padding: 0.9rem;
+  color: #d9f99d;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.app-fallback-icon {
+  font-size: 3rem;
+  line-height: 1;
+}

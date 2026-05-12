@@ -36,6 +36,13 @@ import {
   updatePlayerSteering,
 } from "./game/player.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
+import {
+  isLeaderboardAvailable,
+  loadLeaderboard,
+  normalizeInitials,
+  submitLeaderboardEntry,
+  validateInitials,
+} from "./game/leaderboard.js";
 import { runSelfTests } from "./game/selfTests.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
 
@@ -137,6 +144,16 @@ export default function App() {
   const [testSummary, setTestSummary] = useState("Self-tests pending");
   const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
+  const [initials, setInitials] = useState("");
+  const [initialsError, setInitialsError] = useState("");
+  const [leaderboardSubmitted, setLeaderboardSubmitted] = useState(false);
+  const [leaderboardStatus, setLeaderboardStatus] = useState({
+    entries: [],
+    loading: true,
+    submitting: false,
+    source: isLeaderboardAvailable() ? "remote" : "local",
+    error: null,
+  });
 
   const ui = {
     health: useRef(null),
@@ -197,6 +214,31 @@ export default function App() {
     setTestSummary(summary);
     if (passCount !== results.length) console.warn("Pink Elephant self-tests failed", results);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshLeaderboard() {
+      setLeaderboardStatus((status) => ({ ...status, loading: true, error: null }));
+      const result = await loadLeaderboard();
+      if (cancelled) return;
+      setLeaderboardStatus({
+        entries: result.entries,
+        loading: false,
+        submitting: false,
+        source: result.source,
+        error: result.error,
+      });
+    }
+    refreshLeaderboard();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!finalResults) {
+      setLeaderboardSubmitted(false);
+      setInitialsError("");
+    }
+  }, [finalResults]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -1837,6 +1879,107 @@ export default function App() {
     };
   }, []);
 
+  const handleInitialsChange = (event) => {
+    setInitials(normalizeInitials(event.target.value));
+    setInitialsError("");
+  };
+
+  const handleLeaderboardSubmit = async (event) => {
+    event.preventDefault();
+    if (!finalResults || leaderboardStatus.submitting || leaderboardSubmitted) return;
+    if (!validateInitials(initials)) {
+      setInitialsError("Use exactly 3 uppercase letters or numbers — no full names.");
+      return;
+    }
+
+    setInitialsError("");
+    setLeaderboardStatus((status) => ({ ...status, submitting: true, error: null }));
+    try {
+      const result = await submitLeaderboardEntry({
+        initials,
+        score: finalResults.score,
+        elapsedMs: finalResults.elapsedMs,
+        fruit: finalResults.fruit,
+        crates: finalResults.crates,
+        lives: finalResults.lives,
+        createdAt: new Date().toISOString(),
+      });
+      setLeaderboardSubmitted(true);
+      setLeaderboardStatus({
+        entries: result.entries,
+        loading: false,
+        submitting: false,
+        source: result.source,
+        error: result.error,
+      });
+    } catch (error) {
+      setInitialsError(error?.message || "Could not save that leaderboard entry.");
+      setLeaderboardStatus((status) => ({ ...status, submitting: false }));
+    }
+  };
+
+  const renderLeaderboardPanel = (accent = "#fde68a") => (
+    <div className="mt-6 rounded-2xl p-4 text-left"
+      style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${accent}55` }}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-black uppercase tracking-[0.22em]" style={{ color: accent }}>Class Leaderboard</h3>
+        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.5)" }}>
+          {leaderboardStatus.loading ? "Loading" : leaderboardStatus.source === "remote" ? "Shared" : "This device"}
+        </span>
+      </div>
+      {leaderboardStatus.error && (
+        <p className="mb-2 rounded-xl px-3 py-2 text-xs font-bold"
+          style={{ background: "rgba(251,191,36,0.12)", color: "#fde68a", border: "1px solid rgba(251,191,36,0.24)" }}>
+          {leaderboardStatus.error}
+        </p>
+      )}
+      {leaderboardStatus.loading ? (
+        <p className="text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>Loading leaderboard…</p>
+      ) : leaderboardStatus.entries.length ? (
+        <ol className="leaderboard-list">
+          {leaderboardStatus.entries.map((entry, index) => (
+            <li key={`${entry.initials}-${entry.score}-${entry.elapsedMs}-${entry.createdAt}`} className="leaderboard-row">
+              <span className="leaderboard-rank">{index + 1}</span>
+              <span className="leaderboard-initials">{entry.initials}</span>
+              <span className="leaderboard-score">{entry.score}</span>
+              <span className="leaderboard-time">{formatElapsed(entry.elapsedMs)}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>No scores yet. Be the first herd on the board!</p>
+      )}
+      {finalResults && (
+        <form onSubmit={handleLeaderboardSubmit} className="mt-4 flex items-center gap-2">
+          <label className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: "rgba(255,255,255,0.55)" }} htmlFor="leaderboard-initials">
+            Initials
+          </label>
+          <input
+            id="leaderboard-initials"
+            value={initials}
+            onChange={handleInitialsChange}
+            maxLength={3}
+            inputMode="text"
+            autoComplete="off"
+            pattern="[A-Z0-9]{3}"
+            placeholder="ABC"
+            disabled={leaderboardStatus.submitting || leaderboardSubmitted}
+            aria-describedby="leaderboard-help"
+            className="leaderboard-input"
+          />
+          <button type="submit" disabled={leaderboardStatus.submitting || leaderboardSubmitted}
+            className="rounded-full px-4 py-2 text-xs font-black text-slate-950 transition hover:scale-105 active:scale-95"
+            style={{ background: accent, opacity: leaderboardStatus.submitting || leaderboardSubmitted ? 0.62 : 1 }}>
+            {leaderboardStatus.submitting ? "Saving…" : leaderboardSubmitted ? "Saved" : "Save"}
+          </button>
+        </form>
+      )}
+      <p id="leaderboard-help" className="mt-2 text-[11px]" style={{ color: initialsError ? "#fecaca" : "rgba(255,255,255,0.45)" }}>
+        {initialsError || "Use a 3-character classroom code only. No full names are stored."}
+      </p>
+    </div>
+  );
+
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
@@ -1977,7 +2120,7 @@ export default function App() {
         <section className="absolute inset-0 z-30 flex items-center justify-center px-6"
           style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(15,28,12,0.45) 50%, rgba(0,0,0,0.8) 100%)", backdropFilter: "blur(2px)" }}>
           <div className="w-full max-w-xl rounded-[2rem] p-8 text-center"
-            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)" }}>
+            style={{ background: "rgba(12,20,10,0.78)", border: "1px solid rgba(246,210,138,0.25)", boxShadow: "0 0 55px rgba(255,180,80,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
             <div className="mb-2 text-xs font-black uppercase tracking-[0.38em] text-emerald-200/75">Three-Loop Jungle Trial</div>
             <div className="title-elephant-badge mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
               aria-label="Pink elephant mascot" role="img">
@@ -2014,6 +2157,7 @@ export default function App() {
               ))}
             </div>
             <div className="mt-4 text-[11px] tracking-wide text-emerald-100/50">{testSummary}</div>
+            {renderLeaderboardPanel("#f9a8d4")}
           </div>
         </section>
       )}
@@ -2023,7 +2167,7 @@ export default function App() {
         <section className="absolute inset-0 z-20 flex items-center justify-center px-6"
           style={{ background: "rgba(0,0,0,0.52)", backdropFilter: "blur(4px)" }}>
           <div className="rounded-[2rem] p-10 text-center"
-            style={{ background: "rgba(12,20,10,0.88)", border: "1px solid rgba(255,200,80,0.35)", boxShadow: "0 0 65px rgba(255,190,80,0.22)" }}>
+            style={{ background: "rgba(12,20,10,0.88)", border: "1px solid rgba(255,200,80,0.35)", boxShadow: "0 0 65px rgba(255,190,80,0.22)", maxHeight: "92vh", overflowY: "auto" }}>
             <div className="mb-4 text-6xl">🏆</div>
             <h2 className="display-title text-4xl font-black text-amber-200">Jungle Gate Reached!</h2>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-amber-50/70">
@@ -2036,6 +2180,7 @@ export default function App() {
               <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
+            {renderLeaderboardPanel("#fde68a")}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-amber-200 px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Restart Trail
@@ -2049,7 +2194,7 @@ export default function App() {
         <section className="absolute inset-0 z-20 flex items-center justify-center px-6"
           style={{ background: "rgba(42,5,10,0.72)", backdropFilter: "blur(4px)" }}>
           <div className="rounded-[2rem] p-10 text-center"
-            style={{ background: "rgba(24,10,12,0.9)", border: "1px solid rgba(255,120,140,0.35)", boxShadow: "0 0 65px rgba(255,80,120,0.18)" }}>
+            style={{ background: "rgba(24,10,12,0.9)", border: "1px solid rgba(255,120,140,0.35)", boxShadow: "0 0 65px rgba(255,80,120,0.18)", maxHeight: "92vh", overflowY: "auto" }}>
             <div className="mb-4 text-6xl">⚠️</div>
             <h2 className="display-title text-4xl font-black text-red-100">The Herd Needs Rest</h2>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-red-50/70">
@@ -2062,6 +2207,7 @@ export default function App() {
               <span>🐘 <span>{finalResults?.lives ?? 0}</span></span>
               <span>⏱ <span>{formatElapsed(finalResults?.elapsedMs ?? 0)}</span></span>
             </div>
+            {renderLeaderboardPanel("#fecaca")}
             <button onClick={startDemo}
               className="mt-8 rounded-full bg-white px-8 py-3 font-black text-slate-950 transition hover:scale-105 active:scale-95">
               Try Again

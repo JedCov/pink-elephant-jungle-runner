@@ -487,3 +487,65 @@ button {
   font-size: 3rem;
   line-height: 1;
 }
+
+.leaderboard-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 1.75rem 3rem 1fr 3.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.75rem;
+  background: rgba(0,0,0,0.18);
+  padding: 0.45rem 0.55rem;
+  color: rgba(255,255,255,0.76);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.leaderboard-rank {
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+}
+
+.leaderboard-initials {
+  color: #fff7ed;
+  letter-spacing: 0.18em;
+}
+
+.leaderboard-score,
+.leaderboard-time {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.leaderboard-time {
+  color: rgba(255,255,255,0.52);
+}
+
+.leaderboard-input {
+  width: 4.75rem;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 9999px;
+  background: rgba(0,0,0,0.28);
+  color: #fff7ed;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  padding: 0.55rem 0.7rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.leaderboard-input:disabled,
+button:disabled {
+  cursor: not-allowed;
+}

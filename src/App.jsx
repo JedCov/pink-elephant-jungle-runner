@@ -1103,7 +1103,7 @@ export default function App() {
       burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
       burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
       popText(`TRUNK-SMASH! +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
-      playTone("smash");
+      playTone("crateSmash");
     }
 
     function collectScore(basePoints, comboWindowSeconds = SCORING.comboWindowSeconds) {
@@ -1122,7 +1122,7 @@ export default function App() {
       body.lives += livesAwarded;
       for (let i = 0; i < livesAwarded; i++) {
         popText("BONUS ELEPHANT!", body.x, body.y + 3.4, body.z, "#b7ffb7");
-        playTone("life");
+        playTone("bonusLife");
       }
     }
 
@@ -1222,6 +1222,7 @@ export default function App() {
 
       function playSlideEvent() {
         burst(body.x, 0.2, body.z, "#d6c399", 6, 0.2);
+        playTone("slideStart");
       }
 
       if (k.KeyZ && triggerPlayerSmash(body, playing)) {
@@ -1337,7 +1338,7 @@ export default function App() {
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ff2200", PARTICLES.monkeyBurstCount, 0.22);
           burst(en.x, en.mesh.position.y + 0.7, en.z, "#ffd34a", PARTICLES.monkeySparkleCount, 0.18);
           popText(`MONKEY DOWN! +${pts}`, en.x, en.mesh.position.y + 2.8, en.z, "#ffcf66");
-          playTone("smash");
+          playTone("monkeyDefeat");
         } else {
           hurt(false);
         }

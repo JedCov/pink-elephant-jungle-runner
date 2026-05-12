@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "allowJs": true,
+    // Keep JavaScript checking opt-in so large legacy files such as src/App.jsx remain unchecked
+    // until smaller modules add // @ts-check and clean up their local JSDoc types.
     "checkJs": false,
     "jsx": "react-jsx",
     "module": "ESNext",

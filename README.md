@@ -56,7 +56,7 @@ The game uses `src/game/leaderboard.js` for leaderboard access. It stores classr
 
 For a shared leaderboard across multiple student devices, create a Supabase project and run `supabase/leaderboard.sql` in the Supabase SQL editor. The SQL enables row-level security, allows anonymous select/insert, and enforces the server-side initials rule with a database check: exactly 3 uppercase alphanumeric characters.
 
-Set these Vite environment variables before building or deploying:
+Set these Vite environment variables before building locally, and add the same names as GitHub repository **Variables** (`Settings` → `Secrets and variables` → `Actions` → `Variables`) so the existing GitHub Pages URL can build with the shared backend enabled:
 
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -65,7 +65,7 @@ VITE_SUPABASE_ANON_KEY=your-public-anon-key
 VITE_SUPABASE_LEADERBOARD_TABLE=leaderboard
 ```
 
-Do not collect full names. The UI and database reject empty or malformed initials, and the client submits only the safe leaderboard fields.
+Do not collect full names. The UI and database reject empty or malformed initials, and the client submits only the safe leaderboard fields. If those variables are missing, the same GitHub Pages game still works and saves scores only in the current browser as a fallback.
 
 ## Deployment
 

@@ -11,7 +11,7 @@ import {
   smashBox,
 } from "./collisionHelpers.js";
 import { applyFruitLifeCounter } from "./fruitLife.js";
-import { rankLeaderboardEntries } from "./leaderboard.js";
+import { LEADERBOARD_LIMIT, leaderboardResultQualifies, rankLeaderboardEntries } from "./leaderboard.js";
 import { createKeys, setKeyState } from "./input.js";
 import { isAudioCategoryMuted, normalizeAudioState, resolveTonePlayback } from "./audio/audioManager.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
@@ -74,6 +74,21 @@ export function runSelfTests() {
     { initials: " peppy! ", score: 1, elapsedMs: 1000, date: "2026-05-01T00:00:00.000Z" },
   ]);
   assert("leaderboard normalizes initials to 3 uppercase characters", leaderboardInitials[0].initials === "PEP");
+
+  const fullLeaderboard = Array.from({ length: LEADERBOARD_LIMIT }, (_, index) => ({
+    initials: `T${String(index).padStart(2, "0")}`.slice(0, 3),
+    score: 1000 - index,
+    elapsedMs: 1000 + index,
+    date: "2026-05-01T00:00:00.000Z",
+  }));
+  assert(
+    "leaderboard accepts a result that beats the current top-20 cutoff",
+    leaderboardResultQualifies(fullLeaderboard, { score: 2000, elapsedMs: 999 }),
+  );
+  assert(
+    "leaderboard rejects a result below the current top-20 cutoff",
+    !leaderboardResultQualifies(fullLeaderboard, { score: 1, elapsedMs: 999 }),
+  );
 
   assert(
     "seeded RNG repeats the same organic sequence for a seed",

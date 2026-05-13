@@ -2,7 +2,7 @@ export const LEADERBOARD_LIMIT = 20;
 
 const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard.v1";
 const DEFAULT_TABLE = "leaderboard";
-const MAX_ENTRIES = 10;
+const MAX_ENTRIES = LEADERBOARD_LIMIT;
 const INITIALS_PATTERN = /^[A-Z0-9]{3}$/;
 
 export function normalizeInitials(value) {
@@ -61,6 +61,23 @@ export function addLeaderboardEntry(entries, entry, limit = LEADERBOARD_LIMIT) {
   return rankLeaderboardEntries([...entries, entry], limit);
 }
 
+export function leaderboardResultQualifies(entries, result, limit = LEADERBOARD_LIMIT) {
+  if (!result || !Number.isFinite(Number(result.score)) || !Number.isFinite(Number(result.elapsedMs))) return false;
+  const rankedEntries = rankLeaderboardEntries(entries, limit);
+  if (rankedEntries.length < limit) return true;
+
+  const candidate = normalizeLeaderboardEntry({
+    initials: "AAA",
+    score: result.score,
+    elapsedMs: result.elapsedMs,
+    fruit: result.fruit,
+    crates: result.crates,
+    lives: result.lives,
+    date: new Date().toISOString(),
+  });
+  return compareLeaderboardEntries(candidate, rankedEntries[rankedEntries.length - 1]) <= 0;
+}
+
 function getSupabaseConfig() {
   const env = import.meta.env ?? {};
   const url = env.VITE_SUPABASE_URL?.replace(/\/$/, "");
@@ -72,11 +89,12 @@ function getSupabaseConfig() {
 
 function sortEntries(entries) {
   return [...entries]
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      if (a.elapsedMs !== b.elapsedMs) return a.elapsedMs - b.elapsedMs;
-      return String(b.createdAt).localeCompare(String(a.createdAt));
-    })
+    .map(sanitizeLeaderboardEntry)
+    .filter((entry) => validateInitials(entry.initials))
+    .sort((a, b) => compareLeaderboardEntries(
+      { ...a, date: a.createdAt },
+      { ...b, date: b.createdAt },
+    ))
     .slice(0, MAX_ENTRIES);
 }
 
@@ -121,7 +139,7 @@ function readLocalLeaderboard() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
     if (!Array.isArray(parsed)) return [];
-    return sortEntries(parsed.map(sanitizeLeaderboardEntry).filter((entry) => validateInitials(entry.initials)));
+    return sortEntries(parsed);
   } catch (error) {
     console.warn("Pink Elephant leaderboard local read failed", error);
     return [];

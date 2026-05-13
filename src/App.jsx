@@ -40,11 +40,11 @@ import {
 } from "./game/movement.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
 import {
-  addLeaderboardEntry,
+  LEADERBOARD_LIMIT,
   isLeaderboardAvailable,
+  leaderboardResultQualifies,
   loadLeaderboard as loadSharedLeaderboard,
   normalizeInitials,
-  rankLeaderboardEntries,
   submitLeaderboardEntry,
   validateInitials,
 } from "./game/leaderboard.js";
@@ -53,28 +53,6 @@ import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js"
 
 const nl = String.fromCharCode(10);
 const JUNGLE_LAYOUT_SEED = 0x5eed2026;
-
-const LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard";
-const DEFAULT_LEADERBOARD_INITIALS = "PEJ";
-
-function loadLeaderboardEntries() {
-  if (typeof window === "undefined") return [];
-
-  try {
-    return rankLeaderboardEntries(JSON.parse(window.localStorage.getItem(LEADERBOARD_STORAGE_KEY) || "[]"));
-  } catch {
-    return [];
-  }
-}
-
-function saveLeaderboardEntries(entries) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
-}
-
-function formatLeaderboardDate(date) {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(date));
-}
 
 const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
 
@@ -153,72 +131,6 @@ function formatElapsed(elapsedMs) {
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
   return `${mm}:${ss}`;
-}
-
-const LEGACY_LEADERBOARD_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard";
-const MAX_LEADERBOARD_ENTRIES = 20;
-const INITIALS_LENGTH = 3;
-
-function normalizeLegacyInitials(value) {
-  return String(value ?? "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, INITIALS_LENGTH);
-}
-
-function normalizeLegacyLeaderboardEntry(entry) {
-  if (!entry || typeof entry !== "object") return null;
-  const initials = normalizeLegacyInitials(entry.initials);
-  const score = Number(entry.score);
-  const elapsedMs = Number(entry.elapsedMs);
-  if (initials.length !== INITIALS_LENGTH || !Number.isFinite(score) || !Number.isFinite(elapsedMs)) return null;
-  return {
-    initials,
-    score,
-    elapsedMs,
-    fruit: Number.isFinite(Number(entry.fruit)) ? Number(entry.fruit) : undefined,
-    crates: Number.isFinite(Number(entry.crates)) ? Number(entry.crates) : undefined,
-    lives: Number.isFinite(Number(entry.lives)) ? Number(entry.lives) : undefined,
-    date: typeof entry.date === "string" ? entry.date : undefined,
-  };
-}
-
-function sortLeaderboardEntries(entries) {
-  return [...entries].sort((a, b) => b.score - a.score || a.elapsedMs - b.elapsedMs);
-}
-
-function loadLegacyLeaderboard() {
-  try {
-    if (typeof window === "undefined" || !window.localStorage) return [];
-    const stored = window.localStorage.getItem(LEGACY_LEADERBOARD_STORAGE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return sortLeaderboardEntries(parsed.map(normalizeLegacyLeaderboardEntry).filter(Boolean)).slice(0, MAX_LEADERBOARD_ENTRIES);
-  } catch (error) {
-    console.warn("Unable to load leaderboard", error);
-    return [];
-  }
-}
-
-function saveLegacyLeaderboard(entries) {
-  try {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.setItem(LEGACY_LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
-  } catch (error) {
-    console.warn("Unable to save leaderboard", error);
-  }
-}
-
-function rankLegacyLeaderboardEntry(entries, result) {
-  if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.elapsedMs)) return -1;
-  const ranked = sortLeaderboardEntries([...entries, result]);
-  const rank = ranked.indexOf(result);
-  return rank >= 0 && rank < MAX_LEADERBOARD_ENTRIES ? rank : -1;
-}
-
-function insertLegacyLeaderboardEntry(entries, entry) {
-  return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
 }
 
 function SelfTestStatus({ summaryRef }) {
@@ -326,7 +238,6 @@ export default function App() {
   const [sceneError, setSceneError] = useState(null);
   const testSummaryRef = useRef("Self-tests pending");
   const [finalResults, setFinalResults] = useState(null);
-  const [leaderboardEntries, setLeaderboardEntries] = useState(loadLeaderboardEntries);
   const [initials, setInitials] = useState("");
   const [initialsError, setInitialsError] = useState("");
   const [leaderboardSubmitted, setLeaderboardSubmitted] = useState(false);
@@ -337,9 +248,6 @@ export default function App() {
     source: isLeaderboardAvailable() ? "remote" : "local",
     error: null,
   });
-  const [leaderboard, setLeaderboard] = useState(() => loadLegacyLeaderboard());
-  const leaderboardRef = useRef(leaderboard);
-  const [pendingLeaderboardResult, setPendingLeaderboardResult] = useState(null);
   const [audioState, setAudioState] = useState(readStoredAudioState);
 
   const ui = {
@@ -426,23 +334,6 @@ export default function App() {
   function playTone(type, atTime = null) {
     audioManagerRef.current?.playTone(type, atTime);
   }
-
-  function recordLeaderboardResult(results) {
-    setLeaderboardEntries((entries) => {
-      const nextEntries = addLeaderboardEntry(entries, {
-        initials: DEFAULT_LEADERBOARD_INITIALS,
-        score: results.score,
-        elapsedMs: results.elapsedMs,
-        date: new Date().toISOString(),
-      });
-      saveLeaderboardEntries(nextEntries);
-      return nextEntries;
-    });
-  }
-
-  useEffect(() => {
-    leaderboardRef.current = leaderboard;
-  }, [leaderboard]);
 
   useEffect(() => {
     audioManagerRef.current?.setAudioState(audioState);
@@ -1450,13 +1341,8 @@ export default function App() {
       if (body.lives <= 0 && !gameOverRef.current) {
         gameOverRef.current = true;
         const results = snapshotResults();
-        recordLeaderboardResult(results);
         setFinalResults(results);
         setPausedState(false);
-        if (rankLegacyLeaderboardEntry(leaderboardRef.current, results) !== -1) {
-          setPendingLeaderboardResult(results);
-          setInitials("");
-        }
         setInitials("");
         setGameOver(true);
       }
@@ -1482,12 +1368,7 @@ export default function App() {
       body.speed = 0;
       popText("JUNGLE GATE!", body.x, body.y + 3, popZ - 2, "#fff1a6");
       playTone("gate");
-      recordLeaderboardResult(results);
       setFinalResults(results);
-      if (rankLegacyLeaderboardEntry(leaderboardRef.current, results) !== -1) {
-        setPendingLeaderboardResult(results);
-        setInitials("");
-      }
       setInitials("");
       setComplete(true);
     }
@@ -2304,6 +2185,10 @@ export default function App() {
     }
   };
 
+  const currentResultQualifies = Boolean(finalResults)
+    && !leaderboardSubmitted
+    && leaderboardResultQualifies(leaderboardStatus.entries, finalResults, LEADERBOARD_LIMIT);
+
   const renderLeaderboardPanel = (accent = "#fde68a") => (
     <div className="mt-6 rounded-2xl p-4 text-left"
       style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${accent}55` }}>
@@ -2335,10 +2220,10 @@ export default function App() {
       ) : (
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>No scores yet. Be the first herd on the board!</p>
       )}
-      {finalResults && (
-        <form onSubmit={handleLeaderboardSubmit} className="mt-4 flex items-center gap-2">
+      {currentResultQualifies && (
+        <form onSubmit={handleLeaderboardSubmit} className="mt-4 flex flex-wrap items-center gap-2">
           <label className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: "rgba(255,255,255,0.55)" }} htmlFor="leaderboard-initials">
-            Initials
+            Top {LEADERBOARD_LIMIT} initials
           </label>
           <input
             id="leaderboard-initials"
@@ -2353,113 +2238,23 @@ export default function App() {
             aria-describedby="leaderboard-help"
             className="leaderboard-input"
           />
-          <button type="submit" disabled={leaderboardStatus.submitting || leaderboardSubmitted}
+          <button type="submit" disabled={leaderboardStatus.submitting || leaderboardSubmitted || !validateInitials(initials)}
             className="rounded-full px-4 py-2 text-xs font-black text-slate-950 transition hover:scale-105 active:scale-95"
-            style={{ background: accent, opacity: leaderboardStatus.submitting || leaderboardSubmitted ? 0.62 : 1 }}>
+            style={{ background: accent, opacity: leaderboardStatus.submitting || leaderboardSubmitted || !validateInitials(initials) ? 0.62 : 1 }}>
             {leaderboardStatus.submitting ? "Saving…" : leaderboardSubmitted ? "Saved" : "Save"}
           </button>
         </form>
       )}
+      {finalResults && !currentResultQualifies && !leaderboardSubmitted && (
+        <p className="mt-4 rounded-xl px-3 py-2 text-xs font-bold" style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.62)" }}>
+          This run did not reach the current Top {LEADERBOARD_LIMIT}. Try again to climb the board!
+        </p>
+      )}
       <p id="leaderboard-help" className="mt-2 text-[11px]" style={{ color: initialsError ? "#fecaca" : "rgba(255,255,255,0.45)" }}>
-        {initialsError || "Use a 3-character classroom code only. No full names are stored."}
+        {initialsError || (currentResultQualifies ? "Use a 3-character classroom code only. No full names are stored." : "Ranked by highest score; faster time breaks ties.")}
       </p>
     </div>
   );
-  const normalizedInitials = normalizeLegacyInitials(initials);
-  const initialsReady = normalizedInitials.length === INITIALS_LENGTH;
-
-  function submitLeaderboardInitials(event) {
-    event.preventDefault();
-    if (!pendingLeaderboardResult || !initialsReady) return;
-
-    const entry = {
-      initials: normalizedInitials,
-      score: pendingLeaderboardResult.score,
-      elapsedMs: pendingLeaderboardResult.elapsedMs,
-      fruit: pendingLeaderboardResult.fruit,
-      crates: pendingLeaderboardResult.crates,
-      lives: pendingLeaderboardResult.lives,
-      date: new Date().toISOString(),
-    };
-    const nextEntries = insertLegacyLeaderboardEntry(leaderboardRef.current, entry);
-    saveLegacyLeaderboard(nextEntries);
-    leaderboardRef.current = nextEntries;
-    setLeaderboard(nextEntries);
-    setPendingLeaderboardResult(null);
-  }
-
-  function renderInitialsForm(theme = "amber") {
-    if (!pendingLeaderboardResult) return null;
-    const accent = theme === "red" ? "text-red-50" : "text-amber-50";
-    const buttonClass = theme === "red" ? "bg-red-100 text-red-950" : "bg-amber-200 text-slate-950";
-
-    return (
-      <form onSubmit={submitLeaderboardInitials} className={`mx-auto mt-6 max-w-sm rounded-2xl p-4 ${accent}`}
-        style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)" }}>
-        <label htmlFor={`leaderboard-initials-${theme}`} className="block text-sm font-black">
-          You made the Top 20! Enter your initials.
-        </label>
-        <div className="mt-3 flex items-center justify-center gap-3">
-          <input id={`leaderboard-initials-${theme}`} value={initials}
-            onChange={(event) => setInitials(normalizeLegacyInitials(event.target.value))}
-            maxLength={INITIALS_LENGTH} inputMode="text" autoComplete="off" autoFocus
-            className="w-24 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-center text-2xl font-black uppercase tracking-[0.2em] text-white outline-none focus:border-white/70"
-            aria-label="Leaderboard initials" />
-          <button type="submit" disabled={!initialsReady}
-            className={`rounded-full px-5 py-2 text-sm font-black transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${buttonClass}`}>
-            Submit
-          </button>
-        </div>
-      </form>
-    );
-  }
-
-  function renderLeaderboard(theme = "amber") {
-    const isRed = theme === "red";
-    const headingClass = isRed ? "text-red-100" : "text-amber-100";
-    const mutedClass = isRed ? "text-red-50/60" : "text-amber-50/60";
-    const tableClass = isRed ? "text-red-50" : "text-amber-50";
-
-    return (
-      <div className="mx-auto mt-6 w-full max-w-2xl rounded-2xl p-4 text-left"
-        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}>
-        <h3 className={`text-center text-sm font-black uppercase tracking-[0.22em] ${headingClass}`}>Top 20 Leaderboard</h3>
-        {leaderboard.length === 0 ? (
-          <p className={`mt-3 text-center text-sm ${mutedClass}`}>No trail legends yet. Be the first!</p>
-        ) : (
-          <div className="mt-3 max-h-60 overflow-y-auto pr-1">
-            <table className={`w-full border-separate border-spacing-y-1 text-xs ${tableClass}`}>
-              <thead className={mutedClass}>
-                <tr>
-                  <th className="px-2 py-1 text-left">Rank</th>
-                  <th className="px-2 py-1 text-left">Initials</th>
-                  <th className="px-2 py-1 text-right">Score</th>
-                  <th className="px-2 py-1 text-right">Time</th>
-                  <th className="px-2 py-1 text-right">Fruit</th>
-                  <th className="px-2 py-1 text-right">Crates</th>
-                  <th className="px-2 py-1 text-right">Lives</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((entry, index) => (
-                  <tr key={`${entry.initials}-${entry.score}-${entry.elapsedMs}-${entry.date ?? index}`} style={{ background: "rgba(0,0,0,0.18)" }}>
-                    <td className="rounded-l-lg px-2 py-1 font-black">#{index + 1}</td>
-                    <td className="px-2 py-1 font-black tracking-[0.16em]">{entry.initials}</td>
-                    <td className="px-2 py-1 text-right font-black">{entry.score}</td>
-                    <td className="px-2 py-1 text-right">{formatElapsed(entry.elapsedMs)}</td>
-                    <td className="px-2 py-1 text-right">{entry.fruit ?? "—"}</td>
-                    <td className="px-2 py-1 text-right">{entry.crates ?? "—"}</td>
-                    <td className="rounded-r-lg px-2 py-1 text-right">{entry.lives ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   const startDemo = () => {
     stopTitleTheme(0.18);
     startAudio();
@@ -2634,31 +2429,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div className="mt-5 rounded-2xl p-4 text-left"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xs font-black uppercase tracking-[0.28em] text-amber-100">Leaderboard</h3>
-                <span className="text-[10px] font-bold text-emerald-100/60">Ranked by highest score; faster time breaks ties.</span>
-              </div>
-              <div className="mt-3 space-y-1 text-xs text-amber-50/75">
-                {leaderboardEntries.length === 0 ? (
-                  <div className="rounded-xl px-3 py-2 text-center text-amber-50/45"
-                    style={{ background: "rgba(0,0,0,0.14)" }}>
-                    Finish a trail to post the first herd score.
-                  </div>
-                ) : leaderboardEntries.slice(0, 5).map((entry, index) => (
-                  <div key={`${entry.date}-${index}`} className="grid grid-cols-[2rem_3rem_1fr_4rem_3rem] items-center gap-2 rounded-xl px-3 py-2"
-                    style={{ background: "rgba(0,0,0,0.14)" }}>
-                    <span className="font-black text-pink-200">#{index + 1}</span>
-                    <span className="font-black text-amber-200">{entry.initials}</span>
-                    <span className="font-black text-amber-50">{entry.score}</span>
-                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatElapsed(entry.elapsedMs)}</span>
-                    <span className="text-[10px] text-amber-50/40">{formatLeaderboardDate(entry.date)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {renderLeaderboard()}
             <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
               Trail markings telegraph hazards early; smash crates for score streaks without covering the road.
             </div>

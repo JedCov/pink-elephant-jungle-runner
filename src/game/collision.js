@@ -1,1 +1,1 @@
-export * from "./collisions.js";
+export * from "./collisionHelpers.js";

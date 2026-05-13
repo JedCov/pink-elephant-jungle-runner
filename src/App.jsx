@@ -16,7 +16,7 @@ import {
   radiusBox,
   smashBox,
   sweptObstaclePlayerBox,
-} from "./game/collisions.js";
+} from "./game/collisionHelpers.js";
 import { createKeys, isAllowedKey, setKeyState } from "./game/input.js";
 import { LEVEL } from "./game/level.js";
 import { promptForZ } from "./game/prompts.js";
@@ -26,16 +26,18 @@ import { makeMaterial } from "./game/rendering/materials.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import {
   createPlayerBody,
-  getPlayerInputIntent,
   selectPlayerStateLabel,
-  tickPlayerTimers,
   triggerPlayerSmash,
   triggerPlayerSpin,
+} from "./game/player.js";
+import {
+  getPlayerInputIntent,
+  tickPlayerTimers,
   updateJumpAndSlideInput,
   updatePlayerAir,
   updatePlayerSpeed,
   updatePlayerSteering,
-} from "./game/player.js";
+} from "./game/movement.js";
 import { applyFruitLifeCounter } from "./game/fruitLife.js";
 import {
   addLeaderboardEntry,
@@ -218,8 +220,6 @@ function rankLegacyLeaderboardEntry(entries, result) {
 function insertLegacyLeaderboardEntry(entries, entry) {
   return sortLeaderboardEntries([...entries, entry]).slice(0, MAX_LEADERBOARD_ENTRIES);
 }
-
-const INITIALS_LENGTH = 3;
 
 function SelfTestStatus({ summaryRef }) {
   const [summary, setSummary] = useState(() => summaryRef.current);
@@ -1020,6 +1020,21 @@ export default function App() {
       });
     }
 
+    function addMonkeyArms(group) {
+      [-1, 1].forEach((side) => {
+        const arm = new THREE.Mesh(sharedGeometries.monkeyTailSegment, monkeyBodyMat);
+        arm.position.set(side * 0.72, 0.24, -0.06);
+        arm.scale.set(1.28, 1.7, 1.28);
+        arm.rotation.set(0.28, 0, side * 0.72);
+        arm.castShadow = true;
+        const fist = new THREE.Mesh(sharedGeometries.monkeyEar, monkeyFaceMat);
+        fist.position.set(side * 1.02, -0.08, -0.16);
+        fist.scale.set(0.9, 0.72, 0.82);
+        fist.castShadow = true;
+        group.add(arm, fist);
+      });
+    }
+
     LEVEL.enemies.forEach((en) => {
       addMonkeyEyeCue(en);
       const group = new THREE.Group();
@@ -1069,6 +1084,7 @@ export default function App() {
       }
 
       addMonkeyTail(group);
+      addMonkeyArms(group);
       addBananaBadge(group);
       group.add(body, head, muzzle, eyeLight);
       scene.add(group);
@@ -1114,6 +1130,18 @@ export default function App() {
     bodyMesh.position.y = 1.02; bodyMesh.castShadow = true;
     player.add(bodyMesh);
 
+    [-1, 1].forEach((side) => {
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 8), pink);
+      shoulder.position.set(side * 1.05, 1.12, -0.92);
+      shoulder.scale.set(0.74, 1.02, 0.82);
+      shoulder.castShadow = true;
+      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), pink);
+      haunch.position.set(side * 1.02, 1.02, 1.05);
+      haunch.scale.set(0.82, 0.95, 0.9);
+      haunch.castShadow = true;
+      player.add(shoulder, haunch);
+    });
+
     const legGeo = new THREE.BoxGeometry(0.46, 0.82, 0.5);
     const legAnchors = [
       [-0.86, 0.38, -0.86, 0],
@@ -1147,12 +1175,12 @@ export default function App() {
     headBox.castShadow = true;
     head.add(headBox);
 
-    const earGeo = new THREE.BoxGeometry(1.55, 1.95, 0.22);
+    const earGeo = new THREE.BoxGeometry(1.78, 2.16, 0.24);
     const earL = new THREE.Mesh(earGeo, pink);
     const earR = new THREE.Mesh(earGeo, pink);
-    earL.position.set(-1.18, 0, 0.18); earR.position.set(1.18, 0, 0.18);
+    earL.position.set(-1.3, -0.02, 0.16); earR.position.set(1.3, -0.02, 0.16);
     earL.rotation.y = -0.34; earR.rotation.y = 0.34;
-    const inL = new THREE.Mesh(new THREE.BoxGeometry(1.08, 1.45, 0.24), innerEar);
+    const inL = new THREE.Mesh(new THREE.BoxGeometry(1.24, 1.62, 0.26), innerEar);
     const inR = inL.clone();
     inL.position.copy(earL.position); inR.position.copy(earR.position);
     inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
@@ -1160,9 +1188,16 @@ export default function App() {
 
     const trunk = new THREE.Group();
     trunk.position.set(0, -0.18, -0.85);
-    const trunkMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 1.75, 0.5), pink);
-    trunkMesh.position.y = -0.75; trunkMesh.castShadow = true;
-    trunk.add(trunkMesh);
+    const trunkMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 1.45, 0.5), pink);
+    trunkMesh.position.y = -0.58; trunkMesh.castShadow = true;
+    const trunkTip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.58), pink);
+    trunkTip.position.y = -1.38;
+    trunkTip.position.z = -0.06;
+    trunkTip.castShadow = true;
+    const trunkHighlight = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.52), innerEar);
+    trunkHighlight.position.set(0, -1.6, -0.08);
+    trunkHighlight.castShadow = true;
+    trunk.add(trunkMesh, trunkTip, trunkHighlight);
     head.add(trunk);
 
     const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.18), dark);

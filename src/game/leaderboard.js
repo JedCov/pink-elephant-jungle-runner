@@ -11,8 +11,6 @@ export function normalizeInitials(value) {
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 3);
-
-  return normalized;
 }
 
 function normalizeDate(date) {
@@ -63,11 +61,6 @@ export function addLeaderboardEntry(entries, entry, limit = LEADERBOARD_LIMIT) {
   return rankLeaderboardEntries([...entries, entry], limit);
 }
 
-const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard.v1";
-const DEFAULT_TABLE = "leaderboard";
-const MAX_ENTRIES = 10;
-const INITIALS_PATTERN = /^[A-Z0-9]{3}$/;
-
 function getSupabaseConfig() {
   const env = import.meta.env ?? {};
   const url = env.VITE_SUPABASE_URL?.replace(/\/$/, "");
@@ -85,12 +78,6 @@ function sortEntries(entries) {
       return String(b.createdAt).localeCompare(String(a.createdAt));
     })
     .slice(0, MAX_ENTRIES);
-}
-
-function toSafeInteger(value, fallback = 0) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.max(0, Math.floor(number));
 }
 
 export function validateInitials(value) {

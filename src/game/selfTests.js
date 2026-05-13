@@ -9,7 +9,7 @@ import {
   obstacleBox,
   playerBox,
   smashBox,
-} from "./collisions.js";
+} from "./collisionHelpers.js";
 import { applyFruitLifeCounter } from "./fruitLife.js";
 import { rankLeaderboardEntries } from "./leaderboard.js";
 import { createKeys, setKeyState } from "./input.js";
@@ -18,15 +18,21 @@ import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
 import { CONFIG, MOVEMENT } from "./config.js";
 import { LEVEL } from "./level.js";
+import { LOOP_DIFFICULTIES, LOOP_PROMPT_PLANS, LEVEL_SECTIONS, promptPlanHasCue, sectionDifficulty, sectionMetadata } from "./levelPromptMetadata.js";
 import { LEVEL_PROMPTS, promptForZ } from "./prompts.js";
 import {
   createPlayerBody,
-  getPlayerInputIntent,
   selectPlayerStateLabel,
+} from "./player.js";
+import {
+  getPlayerInputIntent,
+  tickPlayerTimers,
   triggerJumpOrDoubleJump,
   updateJumpAndSlideInput,
+  updatePlayerAir,
   updatePlayerSpeed,
-} from "./player.js";
+  updatePlayerSteering,
+} from "./movement.js";
 
 export function runSelfTests() {
   const results = [];
@@ -228,6 +234,29 @@ export function runSelfTests() {
       && !handleGateCollision({ playing: true, complete: false, currentZ: LEVEL.finish.z + 2, nextZ: LEVEL.finish.z + 1, finishZ: LEVEL.finish.z, failSafeZ: LEVEL.finish.failSafeZ }),
   );
 
+
+  assert(
+    "level prompt metadata exposes loop difficulty progression",
+    LOOP_DIFFICULTIES.join(",") === "intro,building,advanced"
+      && sectionDifficulty(0) === "intro"
+      && sectionDifficulty(1) === "building"
+      && sectionDifficulty(2) === "advanced"
+      && sectionDifficulty(7) === "advanced",
+  );
+  const metadataSample = sectionMetadata(LEVEL_SECTIONS.SLIDE_BRANCH, sectionDifficulty(0), "Slide soon");
+  assert(
+    "level prompt metadata creates section tutorial records",
+    metadataSample.section === LEVEL_SECTIONS.SLIDE_BRANCH
+      && metadataSample.difficulty === "intro"
+      && metadataSample.tutorialPrompt === "Slide soon",
+  );
+  assert(
+    "loop prompt plans preserve core tutorial cues",
+    LOOP_PROMPT_PLANS.length === 3
+      && promptPlanHasCue(LOOP_PROMPT_PLANS[0], "log")
+      && promptPlanHasCue(LOOP_PROMPT_PLANS[2], "river"),
+  );
+
   const promptCueAppearsBefore = (cue, targetZ) => {
     const prompt = LEVEL_PROMPTS.find((candidate) => candidate.cues.includes(cue) && candidate.startZ > targetZ);
     return Boolean(prompt) && promptForZ(prompt.startZ - 0.1) === prompt.text;
@@ -309,6 +338,30 @@ export function runSelfTests() {
 
   const normalFruitAt99 = applyFruitLifeCounter(99, 1);
   assert("normal fruit bonus life threshold still resets at 100", normalFruitAt99.livesAwarded === 1 && normalFruitAt99.counter === 0);
+
+
+  const steeringBody = createPlayerBody({ localX: CONFIG.corridorHalfWidth - 0.1 });
+  const steeringKeys = createKeys();
+  setKeyState(steeringKeys, "ArrowRight", true);
+  const clampedLocalX = updatePlayerSteering(steeringBody, steeringKeys, 1, true, steeringBody.z);
+  assert(
+    "movement helper clamps steering within corridor",
+    clampedLocalX === CONFIG.corridorHalfWidth && steeringBody.yaw !== 0,
+  );
+
+  const comboBody = createPlayerBody({ grounded: false, coyoteTimer: 0.08, multiplier: 3, multiplierCombo: 9, multiplierTimer: 0.01 });
+  tickPlayerTimers(comboBody, 0.1);
+  assert(
+    "movement helper expires coyote and multiplier timers",
+    comboBody.coyoteTimer <= 0.000001 && comboBody.multiplier === 1 && comboBody.multiplierCombo === 0,
+  );
+
+  const bufferedAirBody = createPlayerBody({ grounded: false, yVelocity: -2, jumpBufferTimer: 0.05 });
+  const bufferedAir = updatePlayerAir(bufferedAirBody, CONFIG.playerSize / 2 + 0.01, 0.1);
+  assert(
+    "movement helper consumes buffered jump on landing",
+    bufferedAir.landed && bufferedAir.bufferedJump && !bufferedAirBody.grounded && bufferedAirBody.yVelocity === MOVEMENT.jumpVelocity,
+  );
 
   const jumpBody = createPlayerBody();
   const jumpEvent = triggerJumpOrDoubleJump(jumpBody, true);

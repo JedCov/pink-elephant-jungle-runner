@@ -1083,12 +1083,23 @@ export default function App() {
 
     const player = new THREE.Group();
     scene.add(player);
-    const pink = makeMaterial("#ff4fb3", { roughness: 0.58, emissive: "#3d0522", emissiveIntensity: 0.08 });
-    const innerEar = makeMaterial("#ffb8e7", { roughness: 0.75 });
+    const pink = makeMaterial("#ff69c2", { roughness: 0.54, emissive: "#4a0628", emissiveIntensity: 0.09 });
+    const bellyPink = makeMaterial("#d94a9a", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.045 });
+    const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
+    const innerEar = makeMaterial("#ff9fdb", { roughness: 0.78 });
+    const innerEarGlow = makeMaterial("#ffd1f0", { roughness: 0.68, emissive: "#2f061d", emissiveIntensity: 0.035 });
     const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
 
-    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(2.25, 2.05, 2.85), pink);
-    bodyMesh.position.y = 1.02; bodyMesh.castShadow = true;
+    const bodyGeo = new THREE.DodecahedronGeometry(1, 1);
+    bodyGeo.scale(1.12, 1.04, 1.42);
+    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
+    bodyMesh.position.y = 1.08; bodyMesh.castShadow = true;
+    const bellyGeo = new THREE.SphereGeometry(0.74, 10, 8);
+    bellyGeo.scale(1.18, 0.62, 0.76);
+    const belly = new THREE.Mesh(bellyGeo, bellyPink);
+    belly.position.set(0, -0.2, -0.6);
+    belly.castShadow = true;
+    bodyMesh.add(belly);
     player.add(bodyMesh);
 
     [-1, 1].forEach((side) => {
@@ -1096,14 +1107,14 @@ export default function App() {
       shoulder.position.set(side * 1.05, 1.12, -0.92);
       shoulder.scale.set(0.74, 1.02, 0.82);
       shoulder.castShadow = true;
-      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), pink);
+      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), bellyPink);
       haunch.position.set(side * 1.02, 1.02, 1.05);
       haunch.scale.set(0.82, 0.95, 0.9);
       haunch.castShadow = true;
       player.add(shoulder, haunch);
     });
 
-    const legGeo = new THREE.BoxGeometry(0.46, 0.82, 0.5);
+    const legGeo = new THREE.CapsuleGeometry(0.24, 0.52, 3, 8);
     const legAnchors = [
       [-0.86, 0.38, -0.86, 0],
       [0.86, 0.38, -0.86, Math.PI],
@@ -1111,7 +1122,7 @@ export default function App() {
       [0.86, 0.38, 1.04, 0],
     ];
     const legs = legAnchors.map(([x, y, z, phase]) => {
-      const leg = new THREE.Mesh(legGeo, pink);
+      const leg = new THREE.Mesh(legGeo, legPink);
       leg.position.set(x, y, z);
       leg.castShadow = true;
       player.add(leg);
@@ -1120,10 +1131,11 @@ export default function App() {
 
     const tail = new THREE.Group();
     tail.position.set(0, 1.28, 1.54);
-    const tailMesh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.72), pink);
-    tailMesh.position.z = 0.28;
+    const tailMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.56, 3, 7), pink);
+    tailMesh.position.z = 0.32;
+    tailMesh.rotation.x = Math.PI / 2;
     tailMesh.castShadow = true;
-    const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.24), innerEar);
+    const tailTip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), innerEarGlow);
     tailTip.position.z = 0.72;
     tailTip.castShadow = true;
     tail.add(tailMesh, tailTip);
@@ -1132,37 +1144,61 @@ export default function App() {
     const head = new THREE.Group();
     head.position.set(0, 1.88, -1.65);
     player.add(head);
-    const headBox = new THREE.Mesh(new THREE.BoxGeometry(1.44, 1.44, 1.44), pink);
-    headBox.castShadow = true;
-    head.add(headBox);
+    const headGeo = new THREE.SphereGeometry(0.82, 12, 9);
+    headGeo.scale(0.95, 0.9, 0.9);
+    const headMesh = new THREE.Mesh(headGeo, pink);
+    headMesh.castShadow = true;
+    head.add(headMesh);
 
-    const earGeo = new THREE.BoxGeometry(1.78, 2.16, 0.24);
+    const earGeo = new THREE.SphereGeometry(0.72, 12, 8);
+    earGeo.scale(0.92, 1.16, 0.16);
+    const innerEarGeo = new THREE.SphereGeometry(0.52, 10, 7);
+    innerEarGeo.scale(0.84, 1.08, 0.11);
+    const innerEarGlowGeo = new THREE.SphereGeometry(0.34, 8, 6);
+    innerEarGlowGeo.scale(0.76, 0.98, 0.08);
     const earL = new THREE.Mesh(earGeo, pink);
     const earR = new THREE.Mesh(earGeo, pink);
-    earL.position.set(-1.3, -0.02, 0.16); earR.position.set(1.3, -0.02, 0.16);
+    earL.position.set(-1.08, -0.02, 0.12); earR.position.set(1.08, -0.02, 0.12);
     earL.rotation.y = -0.34; earR.rotation.y = 0.34;
-    const inL = new THREE.Mesh(new THREE.BoxGeometry(1.24, 1.62, 0.26), innerEar);
-    const inR = inL.clone();
+    earL.castShadow = true; earR.castShadow = true;
+    const inL = new THREE.Group();
+    const inR = new THREE.Group();
+    const innerL = new THREE.Mesh(innerEarGeo, innerEar);
+    const innerR = innerL.clone();
+    innerL.position.z = -0.035; innerR.position.z = -0.035;
+    const innerGlowL = new THREE.Mesh(innerEarGlowGeo, innerEarGlow);
+    const innerGlowR = innerGlowL.clone();
+    innerGlowL.position.set(0, 0.1, -0.06); innerGlowR.position.copy(innerGlowL.position);
+    inL.add(innerL, innerGlowL); inR.add(innerR, innerGlowR);
     inL.position.copy(earL.position); inR.position.copy(earR.position);
     inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
     head.add(earL, earR, inL, inR);
 
     const trunk = new THREE.Group();
-    trunk.position.set(0, -0.18, -0.85);
-    const trunkMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 1.45, 0.5), pink);
-    trunkMesh.position.y = -0.58; trunkMesh.castShadow = true;
-    const trunkTip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.58), pink);
-    trunkTip.position.y = -1.38;
-    trunkTip.position.z = -0.06;
-    trunkTip.castShadow = true;
-    const trunkHighlight = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.52), innerEar);
-    trunkHighlight.position.set(0, -1.6, -0.08);
+    trunk.position.set(0, -0.12, -0.74);
+    const trunkSegments = [
+      { y: -0.24, z: -0.08, length: 0.5, top: 0.3, bottom: 0.27, rx: -0.1 },
+      { y: -0.68, z: -0.18, length: 0.52, top: 0.27, bottom: 0.23, rx: -0.24 },
+      { y: -1.08, z: -0.35, length: 0.48, top: 0.23, bottom: 0.19, rx: -0.38 },
+      { y: -1.4, z: -0.58, length: 0.42, top: 0.19, bottom: 0.16, rx: -0.58 },
+    ];
+    trunkSegments.forEach(({ y, z, length, top, bottom, rx }, index) => {
+      const segment = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, length, 8, 1), index < 2 ? pink : bellyPink);
+      segment.position.set(0, y, z);
+      segment.rotation.x = rx;
+      segment.castShadow = true;
+      trunk.add(segment);
+    });
+    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), innerEarGlow);
+    trunkHighlight.position.set(0, -1.6, -0.7);
+    trunkHighlight.scale.set(1.25, 0.7, 0.82);
     trunkHighlight.castShadow = true;
-    trunk.add(trunkMesh, trunkTip, trunkHighlight);
+    trunk.add(trunkHighlight);
     head.add(trunk);
 
-    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.18), dark);
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), dark);
     eyeL.position.set(-0.38, 0.23, -0.76);
+    eyeL.scale.set(0.82, 1.08, 0.7);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.38;
     head.add(eyeL, eyeR);
 
@@ -1745,7 +1781,7 @@ export default function App() {
       earL.rotation.y = -0.34 + Math.sin(t * 8 + body.speed * 0.35) * (0.1 + charge * 0.15);
       earR.rotation.y = 0.34 - Math.sin(t * 8 + body.speed * 0.35) * (0.1 + charge * 0.15);
       inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
-      pink.color.set(hurtState && Math.floor(t * 14) % 2 === 0 ? "#ffffff" : "#ff4fb3");
+      pink.color.set(hurtState && Math.floor(t * 14) % 2 === 0 ? "#ffffff" : "#ff69c2");
 
       shadow.position.set(body.x, 0.025, body.z);
       const air = clamp((body.y - CONFIG.playerSize / 2) / 5, 0, 1);

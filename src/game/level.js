@@ -1,30 +1,8 @@
 import { CONFIG } from "./config.js";
+import { LEVEL_SECTIONS, sectionDifficulty, sectionMetadata } from "./levelPromptMetadata.js";
 import { lerp } from "./math.js";
 
-export const LEVEL_SECTIONS = Object.freeze({
-  FRUIT_GUIDE: "fruit guide",
-  SWAY_TRAIL: "sway trail",
-  JUMP_LOG: "jump log",
-  HIGH_FRUIT: "high fruit",
-  SLIDE_BRANCH: "slide branch",
-  SMASH_CRATE: "smash crate",
-  RIVER_CROC: "river/croc",
-  HEALTH_RECOVERY: "health recovery",
-  MONKEY: "monkey",
-  PINEAPPLE: "pineapple",
-});
-
-function sectionDifficulty(loopIndex) {
-  return loopIndex === 0 ? "intro" : loopIndex === 1 ? "building" : "advanced";
-}
-
-function sectionMetadata(section, difficulty, tutorialPrompt) {
-  return {
-    section,
-    difficulty,
-    ...(tutorialPrompt ? { tutorialPrompt } : {}),
-  };
-}
+export { LEVEL_SECTIONS } from "./levelPromptMetadata.js";
 
 function addFruitLine(fruits, startZ, endZ, count, localXFn, yFn, metadata = {}) {
   for (let i = 0; i < count; i++) {
@@ -91,8 +69,8 @@ export function buildLevel() {
       pineapples: [{ localX: -3.75, z: 72, y: 1.55 }, { localX: 3.6, z: 166, y: 3.15 }],
     },
     {
-      swayWidth: 3.2,
-      guideX: -0.65,
+      swayWidth: 2.95,
+      guideX: -0.45,
       guideCount: 7,
       swayCount: 9,
       jumpCount: 6,
@@ -104,16 +82,16 @@ export function buildLevel() {
       slideX: 1.65,
       crateFruitStartX: -2.6,
       crateFruitEndX: 2.6,
-      log: { localX: 1.2, z: 108, width: 9.55 },
-      branch: { localX: -1.45, z: 148, width: 10.65 },
+      log: { localX: 1.05, z: 108, width: 10.05 },
+      branch: { localX: -1.35, z: 148, width: 11.05 },
       crates: [{ localX: 0, z: 184 }, { localX: -3.05, z: 184 }, { localX: 3.05, z: 184 }],
       river: {
         z: 228,
-        depth: 14,
-        crocs: [{ localX: -3.1, phase: 1.1 }, { localX: 0, phase: 2.35 }, { localX: 3.1, phase: 3.65 }],
+        depth: 13.35,
+        crocs: [{ localX: -3.05, phase: 1.1 }, { localX: 0, phase: 2.55 }, { localX: 3.05, phase: 3.9 }],
       },
       health: { localX: 2.2, z: 240 },
-      enemies: [{ localX: -1.6, z: 58, patrolRange: 3.35, patrolSpeed: 2.75 }],
+      enemies: [{ localX: -1.6, z: 58, patrolRange: 3.05, patrolSpeed: 2.55 }],
       pineapples: [{ localX: 4.05, z: 74, y: 1.7 }, { localX: -4.15, z: 170, y: 3.35 }],
     },
   ];

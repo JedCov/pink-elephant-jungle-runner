@@ -568,6 +568,7 @@ export default function App() {
 
     const colliders = [], pickups = [], crocs = [], particles = [], pops = [];
     const activeObstacles = [];
+    const obstacleTelegraphs = [];
     const enemies = [], collectibleMeshes = [];
     const particlePool = [];
     const popPools = new Map();
@@ -596,6 +597,7 @@ export default function App() {
       edgeStem: new THREE.CylinderGeometry(0.035, 0.045, 0.5, 5),
       edgeTorchPost: new THREE.CylinderGeometry(0.055, 0.075, 1.0, 6),
       edgeTorchFlame: new THREE.ConeGeometry(0.18, 0.42, 7),
+      telegraphArrow: new THREE.ConeGeometry(0.38, 0.82, 3),
     };
     const sharedTreeGeometries = {
       trunk: sharedGeometries.treeTrunk,
@@ -847,7 +849,40 @@ export default function App() {
     const cueCratePlankMat = makeMaterial("#b77a3d", { roughness: 0.9 });
     const cueRippleMat = makeMaterial("#9de7ff", { transparent: true, opacity: 0.68, roughness: 0.45, emissive: "#124d66", emissiveIntensity: 0.2 });
     const cueEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2a1c", emissive: "#ff1200", emissiveIntensity: 2.8 });
+    const telegraphRingMat = new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.22, depthWrite: false });
+    const telegraphArrowMat = new THREE.MeshBasicMaterial({ color: "#ffd34a", transparent: true, opacity: 0.34, depthWrite: false });
+    const telegraphDangerMat = new THREE.MeshBasicMaterial({ color: "#ff7a45", transparent: true, opacity: 0.26, depthWrite: false });
     const CUE_PREVIEW_DISTANCE = 5.8;
+    const TELEGRAPH_VISIBLE_DISTANCE = 54;
+
+    function registerObstacleTelegraph({ localX = 0, z, type, distance = 8, width = 2.2 }) {
+      const cueZ = z + distance;
+      const pos = worldPosition(localX, cueZ);
+      const group = new THREE.Group();
+      group.position.set(pos.x, 0, pos.z);
+      group.rotation.y = trackAngle(cueZ);
+      group.visible = false;
+
+      const ringMat = telegraphRingMat.clone();
+      const ring = new THREE.Mesh(sharedGeometries.cueRipple, ringMat);
+      ring.position.y = 0.18;
+      ring.rotation.x = Math.PI / 2;
+      ring.scale.set(Math.max(1.15, width * 0.78), 0.62, 1);
+      group.add(ring);
+
+      const arrowMat = (type === "crate" ? telegraphArrowMat : telegraphDangerMat).clone();
+      [-0.72, 0, 0.72].forEach((xOffset, index) => {
+        const arrow = new THREE.Mesh(sharedGeometries.telegraphArrow, arrowMat);
+        arrow.position.set(xOffset * Math.min(1.2, width / 2.4), 0.2 + index * 0.008, -0.38 + index * 0.36);
+        arrow.rotation.set(Math.PI / 2, 0, Math.PI);
+        arrow.scale.set(1, type === "branch" ? 0.72 : 0.9, 1);
+        group.add(arrow);
+      });
+
+      scene.add(group);
+      obstacleTelegraphs.push({ group, targetZ: z, type, materials: [ringMat, arrowMat], baseOpacity: type === "crate" ? 0.38 : 0.3 });
+      return group;
+    }
 
     function createCueGroup(localX, z, distance = CUE_PREVIEW_DISTANCE) {
       const cueZ = z + distance;
@@ -927,10 +962,14 @@ export default function App() {
       cue.add(glow);
     }
 
-    LEVEL.rivers.forEach(addRippleCue);
+    LEVEL.rivers.forEach((river) => {
+      addRippleCue(river);
+      registerObstacleTelegraph({ localX: 0, z: river.z, type: "river", distance: 11, width: river.width });
+    });
 
     LEVEL.logs.forEach((log) => {
       addMudSkidCue(log);
+      registerObstacleTelegraph({ localX: log.localX, z: log.z, type: "log", distance: 8.8, width: log.width });
       const posOnPath = worldPosition(log.localX, log.z);
       const mesh = new THREE.Mesh(sharedGeometries.unitBox, logMat);
       mesh.position.set(posOnPath.x, log.height / 2, posOnPath.z);
@@ -943,6 +982,7 @@ export default function App() {
 
     LEVEL.crates.forEach((crate) => {
       addCratePlankCue(crate);
+      registerObstacleTelegraph({ localX: crate.localX, z: crate.z, type: "crate", distance: 8.4, width: crate.width });
       const posOnPath = worldPosition(crate.localX, crate.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, crate.height / 2, posOnPath.z);
@@ -960,6 +1000,7 @@ export default function App() {
 
     LEVEL.branches.forEach((branch) => {
       addLeafShadowCue(branch);
+      registerObstacleTelegraph({ localX: branch.localX, z: branch.z, type: "branch", distance: 7.8, width: branch.width });
       const posOnPath = worldPosition(branch.localX, branch.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, branch.yOffset, posOnPath.z);
@@ -1280,6 +1321,10 @@ export default function App() {
         obs.active = true;
         obs.mesh.visible = true;
       });
+      obstacleTelegraphs.forEach((telegraph) => {
+        telegraph.group.visible = false;
+        telegraph.materials.forEach((material) => { material.opacity = 0; });
+      });
       crocs.forEach((croc) => {
         croc.active = true;
         croc.mesh.visible = true;
@@ -1453,9 +1498,11 @@ export default function App() {
       body.crates += 1;
       body.smashTimer = MOVEMENT.smashActionDuration;
       const pts = collectScore(SCORING.cratePoints, SCORING.crateComboWindowSeconds);
+      const nextMultiplierPreview = Math.min(SCORING.maxMultiplier, body.multiplier);
       burst(obs.x, obs.y, obs.z, "#99652f", PARTICLES.crateWoodCount, PARTICLES.hurtBurstScale);
       burst(obs.x, obs.y + 0.8, obs.z, "#ffd34a", PARTICLES.crateSparkleCount, 0.22);
-      popText(`TRUNK-SMASH! +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
+      popText(`CRATE BONUS +${pts}`, obs.x, obs.y + 2.2, obs.z, "#ffe08a");
+      if (nextMultiplierPreview > 1) popText(`${nextMultiplierPreview}x STREAK`, obs.x, obs.y + 3.35, obs.z, "#ffcf66");
       playTone("crateSmash");
     }
 
@@ -1493,6 +1540,10 @@ export default function App() {
       if (e.code === "Backquote" && !wasPressed) {
         debugRef.current = !debugRef.current;
         setDebug(debugRef.current);
+      }
+      if (e.code === "KeyM") {
+        if (!e.repeat && !wasPressed) toggleAudioState("muted");
+        return;
       }
       if (e.code === "Escape" || e.code === "KeyP") {
         if (!e.repeat && !wasPressed) {
@@ -1795,6 +1846,20 @@ export default function App() {
         item.mesh.position.y = item.y + Math.sin(t * 3 + index) * 0.16;
       });
       gate.rotation.y = trackAngle(LEVEL.gate.z) + Math.sin(t * 0.7) * 0.02;
+
+      obstacleTelegraphs.forEach((telegraph, index) => {
+        const distanceAhead = body.z - telegraph.targetZ;
+        const visible = startedRef.current && !completeRef.current && !gameOverRef.current && distanceAhead > 0 && distanceAhead < TELEGRAPH_VISIBLE_DISTANCE;
+        telegraph.group.visible = visible;
+        if (!visible) return;
+        const proximity = 1 - clamp(distanceAhead / TELEGRAPH_VISIBLE_DISTANCE, 0, 1);
+        const pulse = 0.72 + Math.sin(t * 7.5 + index * 0.9) * 0.18;
+        const opacity = telegraph.baseOpacity * (0.35 + proximity * 0.65) * pulse;
+        telegraph.group.position.y = Math.sin(t * 5.5 + index) * 0.035;
+        telegraph.materials.forEach((material, materialIndex) => {
+          material.opacity = Math.min(materialIndex === 0 ? 0.28 : 0.46, opacity * (materialIndex === 0 ? 0.7 : 1));
+        });
+      });
 
       // Patrol monkey animation
       enemies.forEach((en) => {
@@ -2418,7 +2483,7 @@ export default function App() {
 
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
-        <div className="pointer-events-auto absolute bottom-4 right-4 z-20">
+        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 right-4 z-20">
           <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
         </div>
       )}
@@ -2427,9 +2492,9 @@ export default function App() {
           <div className="hud-tally-cluster flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
             <span>🍋 <span ref={ui.fruitTally}>0</span></span>
             <span className="text-amber-100/30">·</span>
-            <span>📦 <span ref={ui.cratesTally}>0</span></span>
+            <span title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></span>
             <span className="text-amber-100/30">·</span>
-            <span>⭐ <span ref={ui.scoreTally}>0</span></span>
+            <span className="hud-score-emphasis" title="Score from fruit, crates, pineapples, and monkeys">⭐ <span ref={ui.scoreTally}>0</span></span>
           </div>
           <div ref={ui.sectionBadge} className="hud-section-pill rounded-full px-4 py-1 text-xs font-black uppercase tracking-[0.28em] text-emerald-200">
             Learning Trail
@@ -2554,7 +2619,7 @@ export default function App() {
             <h1 className="display-title text-5xl font-black leading-tight text-pink-300 drop-shadow" style={{ letterSpacing: "0.01em" }}>Pink Elephant</h1>
             <h2 className="display-title mt-1 text-3xl font-black text-amber-100" style={{ letterSpacing: "0.05em" }}>Jungle Dash</h2>
             <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-amber-50/75">
-              Stomp through a guided jungle corridor. Start with charge, steering, jumping, and sliding; the trail teaches tougher moves right before they matter.
+              Charge, jump, slide, and smash through a low-poly jungle course. Look for small trail telegraphs before obstacles, then chase fruit, crates, and bonus score.
             </p>
             <AudioControls audioState={audioState} onToggle={toggleAudioState} />
             <button onClick={startDemo}
@@ -2563,7 +2628,7 @@ export default function App() {
               Begin the Trail
             </button>
             <div className="title-primary-controls mt-6 text-left text-xs text-amber-50/70" aria-label="Primary controls">
-              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Steer"], ["Tap Space", "Jump"], ["Hold Space", "Slide"]].map(([key, label]) => (
+              {[["↑ / W", "Build Charge"], ["← / A   → / D", "Steer"], ["Tap Space", "Jump"], ["Hold Space", "Slide"], ["Z / E", "Smash / Spin"], ["M", "Mute"]].map(([key, label]) => (
                 <div key={key} className="title-primary-control flex items-center gap-2 rounded-xl px-3 py-2">
                   <span className="title-control-key shrink-0 font-black text-amber-200">{key}</span><span>{label}</span>
                 </div>
@@ -2595,7 +2660,7 @@ export default function App() {
             </div>
             {renderLeaderboard()}
             <div className="title-advanced-note mx-auto mt-3 rounded-full px-4 py-2 text-center text-[11px] font-bold tracking-wide text-emerald-100/50">
-              Advanced moves appear as trail prompts just before crates and monkey patrols.
+              Trail markings telegraph hazards early; smash crates for score streaks without covering the road.
             </div>
             <SelfTestStatus summaryRef={testSummaryRef} />
             {renderLeaderboardPanel("#f9a8d4")}

@@ -730,3 +730,18 @@ button:disabled {
     top: 2.25rem;
   }
 }
+
+.hud-score-emphasis {
+  color: rgba(255, 224, 138, 0.9);
+  text-shadow: 0 0 10px rgba(255, 211, 74, 0.18);
+}
+
+.hud-audio-dock {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.24));
+  opacity: 0.82;
+}
+
+.hud-audio-dock:hover,
+.hud-audio-dock:focus-within {
+  opacity: 1;
+}

@@ -129,6 +129,10 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 - Add new movement, camera, or tuning constants in `src/game/config.js` instead of scattering magic numbers through the game loop.
 - Add reusable UI pieces under `src/components/`.
 
+## Follow-up Issue Drafts
+
+GitHub-ready follow-up issue drafts live in `docs/follow-up-issues.md`. They cover local reset/pause polish, seeded jungle decoration, optional touch controls, instanced static props, and procedural audio polish while preserving the pink elephant jungle runner identity and lightweight low-poly procedural style.
+
 ## Notes for Future Cleanup
 
 The refactor keeps gameplay conservative: the main scene and update loop remain in `src/App.jsx` to avoid changing behaviour accidentally. Future work can gradually extract larger systems, such as player physics, obstacle collision handling, audio playback, and enemy updates, once there are automated browser-level regression checks.

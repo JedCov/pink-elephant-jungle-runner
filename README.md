@@ -131,7 +131,7 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 
 ## Follow-up Issue Drafts
 
-GitHub-ready follow-up issue drafts live in `docs/follow-up-issues.md`. They cover local reset/pause polish, seeded jungle decoration, optional touch controls, instanced static props, and procedural audio polish while preserving the pink elephant jungle runner identity and lightweight low-poly procedural style.
+GitHub-ready follow-up issue drafts live in `docs/follow-up-issues.md`. Codex-ready one-task prompts for those drafts live in `docs/codex-task-prompts.md`. Together they cover local reset/pause polish, seeded jungle decoration, optional touch controls, instanced static props, and procedural audio polish while preserving the pink elephant jungle runner identity and lightweight low-poly procedural style.
 
 ## Notes for Future Cleanup
 

@@ -23,6 +23,7 @@ import { promptForZ } from "./game/prompts.js";
 import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
+import { createPostProcessing } from "./game/rendering/postprocessing.js";
 import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
 import {
   createPlayerBody,
@@ -407,11 +408,34 @@ export default function App() {
       return undefined;
     }
     setSceneError(null);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    const rendererPixelRatio = () => Math.min(window.devicePixelRatio || 1, 1.5);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.22;
+    renderer.setPixelRatio(rendererPixelRatio());
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mount.appendChild(renderer.domElement);
+
+    let postProcessing = null;
+    try {
+      postProcessing = createPostProcessing(renderer, scene, camera, {
+        width: mount.clientWidth,
+        height: Math.max(1, mount.clientHeight),
+        pixelRatio: rendererPixelRatio(),
+      });
+    } catch (error) {
+      console.warn("Pink Elephant post-processing failed; falling back to direct rendering", error);
+    }
+
+    const renderFrame = () => {
+      if (postProcessing) {
+        postProcessing.render();
+        return;
+      }
+      renderer.render(scene, camera);
+    };
 
     scene.add(new THREE.AmbientLight("#d9f5cf", 0.58));
     const sun = new THREE.DirectionalLight("#ffd38a", 1.85);
@@ -706,7 +730,7 @@ export default function App() {
       });
     }
 
-    const fruitMat = new THREE.MeshStandardMaterial({ color: "#ffd34a", roughness: 0.34, metalness: 0.15, emissive: "#3d2500", emissiveIntensity: 0.25 });
+    const fruitMat = new THREE.MeshStandardMaterial({ color: "#ffd34a", roughness: 0.34, metalness: 0.15, emissive: "#ffd34a", emissiveIntensity: 0.62 });
     LEVEL.fruits.forEach((pos) => {
       const posOnPath = worldPosition(pos.localX, pos.z);
       const fruit = new THREE.Mesh(sharedGeometries.fruit, fruitMat);
@@ -1048,7 +1072,12 @@ export default function App() {
     lintel.position.set(0, 6.4, 0);
     const gateGlow = new THREE.PointLight("#ffbf4a", 2.8, 28);
     gateGlow.position.set(0, 4, 2);
-    gate.add(pillarL, pillarR, lintel, gateGlow);
+    const gateGlowCore = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42, 16, 10),
+      new THREE.MeshBasicMaterial({ color: "#ffbf4a", transparent: true, opacity: 0.72, depthWrite: false }),
+    );
+    gateGlowCore.position.copy(gateGlow.position);
+    gate.add(pillarL, pillarR, lintel, gateGlow, gateGlowCore);
     scene.add(gate);
     colliders.push({ type: "gate", active: true, mesh: gate, x: trackCenter(LEVEL.gate.z), y: 3, z: LEVEL.gate.z, w: CONFIG.corridorHalfWidth * 2 + 6, h: 6, d: CONFIG.finishTriggerDepth });
 
@@ -1409,7 +1438,10 @@ export default function App() {
 
     function resize() {
       if (!mount || disposed) return;
+      const nextPixelRatio = rendererPixelRatio();
+      renderer.setPixelRatio(nextPixelRatio);
       renderer.setSize(mount.clientWidth, Math.max(1, mount.clientHeight));
+      postProcessing?.resize(mount.clientWidth, Math.max(1, mount.clientHeight), nextPixelRatio);
       camera.aspect = mount.clientWidth / Math.max(1, mount.clientHeight);
       camera.updateProjectionMatrix();
     }
@@ -2070,7 +2102,7 @@ export default function App() {
         lastFpsTime = now;
       }
       if (pausedRef.current) {
-        renderer.render(scene, camera);
+        renderFrame();
         frame = requestAnimationFrame(animate);
         return;
       }
@@ -2078,7 +2110,7 @@ export default function App() {
       updateMeshes(dt, now);
       updateCamera(dt);
       updateDom(now);
-      renderer.render(scene, camera);
+      renderFrame();
       frame = requestAnimationFrame(animate);
     }
 
@@ -2137,6 +2169,7 @@ export default function App() {
       seenGeometries.forEach((geometry) => geometry.dispose());
       seenMaterials.forEach((material) => material.dispose?.());
       seenTextures.forEach((texture) => texture.dispose());
+      postProcessing?.dispose();
       renderer.renderLists?.dispose?.();
       renderer.dispose();
       renderer.forceContextLoss();

@@ -24,7 +24,17 @@ import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { createPostProcessing } from "./game/rendering/postprocessing.js";
-import { makeFoamStreakTexture, makeGroundTexture, makePathTexture, makeWaterRippleTexture } from "./game/rendering/textures.js";
+import {
+  makeCollectibleGlowTexture,
+  makeElephantSkinHighlightTexture,
+  makeFoamStreakTexture,
+  makeGroundTexture,
+  makeLeafVeinTexture,
+  makeMossTexture,
+  makePathCrackTexture,
+  makeStoneBlockTexture,
+  makeWaterRippleTexture,
+} from "./game/rendering/textures.js";
 import {
   createPlayerBody,
   selectPlayerStateLabel,
@@ -549,7 +559,12 @@ export default function App() {
     scene.add(sun);
 
     const jungleTexture = makeGroundTexture();
-    const pathTexture = makePathTexture();
+    const pathTexture = makePathCrackTexture();
+    const stoneBlockTexture = makeStoneBlockTexture();
+    const mossTexture = makeMossTexture();
+    const leafVeinTexture = makeLeafVeinTexture();
+    const elephantSkinTexture = makeElephantSkinHighlightTexture();
+    const collectibleGlowTexture = makeCollectibleGlowTexture();
     const jungle = new THREE.Mesh(new THREE.BoxGeometry(CONFIG.floorWidth, 1.2, CONFIG.floorLength), new THREE.MeshStandardMaterial({ map: jungleTexture, roughness: 0.98 }));
     jungle.position.set(0, -0.62, -CONFIG.floorLength / 2 + 20);
     jungle.receiveShadow = true;
@@ -557,7 +572,7 @@ export default function App() {
 
     const pathGroup = new THREE.Group();
     scene.add(pathGroup);
-    const pathMat = new THREE.MeshStandardMaterial({ map: pathTexture, roughness: 0.95 });
+    const pathMat = makeMaterial("#b87938", { map: pathTexture, roughness: 0.95 });
     const shoulderMat = makeMaterial("#6f4a27", { roughness: 1 });
     const bankMat = makeMaterial("#174026", { roughness: 1 });
     const lipMat = makeMaterial("#d5a25b", { roughness: 0.92 });
@@ -694,6 +709,7 @@ export default function App() {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    const riverStoneMat = makeMaterial("#817e68", { map: stoneBlockTexture, roughness: 0.94 });
     LEVEL.rivers.forEach((river, riverIndex) => {
       const cx = trackCenter(river.z);
       const riverGroup = new THREE.Group();
@@ -707,6 +723,11 @@ export default function App() {
       riverGroup.add(water);
 
       [-1, 1].forEach((edgeSide) => {
+        const bankStone = new THREE.Mesh(new THREE.BoxGeometry(river.width * 0.98, 0.18, 0.32), riverStoneMat);
+        bankStone.position.set(0, 0.09, edgeSide * (river.depth / 2 + 0.12));
+        bankStone.receiveShadow = true;
+        riverGroup.add(bankStone);
+
         const edgeFoam = new THREE.Mesh(new THREE.PlaneGeometry(river.width * 0.96, 0.46), foamMat);
         edgeFoam.rotation.x = -Math.PI / 2;
         edgeFoam.position.set(0, 0.165, edgeSide * (river.depth / 2 - 0.2));
@@ -763,7 +784,12 @@ export default function App() {
     const treeGroup = new THREE.Group();
     scene.add(treeGroup);
     const trunkMat = makeMaterial("#5d371d");
-    const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c"), makeMaterial("#0f5b33")];
+    const leafMats = [
+      makeMaterial("#1e8d47", { map: leafVeinTexture, roughness: 0.82 }),
+      makeMaterial("#2fa55a", { map: leafVeinTexture, roughness: 0.78, emissive: "#0d381f", emissiveIntensity: 0.06 }),
+      makeMaterial("#176b3c", { map: leafVeinTexture, roughness: 0.88 }),
+      makeMaterial("#0f5b33", { map: leafVeinTexture, roughness: 0.92 }),
+    ];
     const jungleVineMat = makeMaterial("#2f6b36", { roughness: 0.96 });
     const jungleMistMat = new THREE.MeshBasicMaterial({ color: "#d7ffe7", transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
     sharedTreeGeometries.vineMaterial = jungleVineMat;
@@ -771,7 +797,7 @@ export default function App() {
 
     const edgePropGroup = new THREE.Group();
     scene.add(edgePropGroup);
-    const edgeStoneMat = makeMaterial("#8f8a71", { roughness: 0.96 });
+    const edgeStoneMat = makeMaterial("#8f8a71", { map: stoneBlockTexture, roughness: 0.96 });
     const edgeFlowerMats = [
       makeMaterial("#ffd84d", { roughness: 0.72, emissive: "#3a2600", emissiveIntensity: 0.16 }),
       makeMaterial("#ff7fb2", { roughness: 0.76, emissive: "#3a061a", emissiveIntensity: 0.12 }),
@@ -781,21 +807,21 @@ export default function App() {
     const edgeTorchPostMat = makeMaterial("#4a2b16", { roughness: 0.86 });
     const edgeTorchFlameMat = new THREE.MeshStandardMaterial({ color: "#ffcf58", roughness: 0.35, emissive: "#ff8c1a", emissiveIntensity: 1.45 });
     const edgeLipHighlightMat = makeMaterial("#ffc66d", { roughness: 0.82, emissive: "#4f2500", emissiveIntensity: 0.18 });
-    const depthEdgeLeafMat = new THREE.MeshStandardMaterial({ color: "#4bea70", roughness: 0.74, emissive: "#bfff6d", emissiveIntensity: 0.22, side: THREE.DoubleSide });
+    const depthEdgeLeafMat = makeMaterial("#4bea70", { map: leafVeinTexture, roughness: 0.74, emissive: "#bfff6d", emissiveIntensity: 0.22, side: THREE.DoubleSide });
     const depthEdgeVineMat = makeMaterial("#47d667", { roughness: 0.88, emissive: "#cffc7a", emissiveIntensity: 0.14 });
-    const depthEdgeMossMat = makeMaterial("#72f052", { roughness: 0.96, emissive: "#efff9a", emissiveIntensity: 0.1 });
-    const depthEdgeRockMat = makeMaterial("#9f986f", { roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
-    const depthEdgeRuinMat = makeMaterial("#8f936c", { roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
-    const depthMidLeafMat = new THREE.MeshStandardMaterial({ color: "#1f7b42", roughness: 0.9, side: THREE.DoubleSide });
+    const depthEdgeMossMat = makeMaterial("#72f052", { map: mossTexture, roughness: 0.96, emissive: "#efff9a", emissiveIntensity: 0.1 });
+    const depthEdgeRockMat = makeMaterial("#9f986f", { map: stoneBlockTexture, roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
+    const depthEdgeRuinMat = makeMaterial("#8f936c", { map: stoneBlockTexture, roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
+    const depthMidLeafMat = makeMaterial("#1f7b42", { map: leafVeinTexture, roughness: 0.9, side: THREE.DoubleSide });
     const depthMidVineMat = makeMaterial("#23683b", { roughness: 0.96 });
-    const depthMidMossMat = makeMaterial("#3f7f35", { roughness: 1 });
-    const depthMidRockMat = makeMaterial("#696b58", { roughness: 1 });
-    const depthMidRuinMat = makeMaterial("#5d6651", { roughness: 0.98 });
-    const depthFarLeafMat = new THREE.MeshStandardMaterial({ color: "#18351f", roughness: 1, side: THREE.DoubleSide });
+    const depthMidMossMat = makeMaterial("#3f7f35", { map: mossTexture, roughness: 1 });
+    const depthMidRockMat = makeMaterial("#696b58", { map: stoneBlockTexture, roughness: 1 });
+    const depthMidRuinMat = makeMaterial("#5d6651", { map: stoneBlockTexture, roughness: 0.98 });
+    const depthFarLeafMat = makeMaterial("#18351f", { map: leafVeinTexture, roughness: 1, side: THREE.DoubleSide });
     const depthFarVineMat = makeMaterial("#142b1c", { roughness: 1 });
-    const depthFarMossMat = makeMaterial("#223a21", { roughness: 1 });
-    const depthFarRockMat = makeMaterial("#343a31", { roughness: 1 });
-    const depthFarRuinMat = makeMaterial("#30372f", { roughness: 1 });
+    const depthFarMossMat = makeMaterial("#223a21", { map: mossTexture, roughness: 1 });
+    const depthFarRockMat = makeMaterial("#343a31", { map: stoneBlockTexture, roughness: 1 });
+    const depthFarRuinMat = makeMaterial("#30372f", { map: stoneBlockTexture, roughness: 1 });
 
     function trackCurvatureCue(z) {
       return Math.abs(trackAngle(z - 18) - trackAngle(z + 18));
@@ -1102,7 +1128,7 @@ export default function App() {
       });
     }
 
-    const fruitMat = new THREE.MeshStandardMaterial({ color: "#ffd34a", roughness: 0.34, metalness: 0.15, emissive: "#ffd34a", emissiveIntensity: 0.62 });
+    const fruitMat = makeMaterial("#ffd34a", { map: collectibleGlowTexture, roughness: 0.34, metalness: 0.15, emissive: "#ffd34a", emissiveIntensity: 0.82, envMapIntensity: 1.25 });
     LEVEL.fruits.forEach((pos) => {
       const posOnPath = worldPosition(pos.localX, pos.z);
       const fruit = new THREE.Mesh(sharedGeometries.fruit, fruitMat);
@@ -1127,10 +1153,10 @@ export default function App() {
     });
 
     const logMat = makeMaterial("#6a3f22");
-    const crateMat = makeMaterial("#93612e");
+    const crateMat = makeMaterial("#8f8a71", { map: stoneBlockTexture, roughness: 0.94 });
     const crateBandMat = makeMaterial("#e2b156");
     const branchLimbMat = makeMaterial("#452817");
-    const branchLeafMat = makeMaterial("#17713d");
+    const branchLeafMat = makeMaterial("#17713d", { map: leafVeinTexture, roughness: 0.86 });
     const cueLeafShadowMat = makeMaterial("#0b1b11", { transparent: true, opacity: 0.46, roughness: 1 });
     const cueMudMat = makeMaterial("#3f2616", { roughness: 1 });
     const cueCratePlankMat = makeMaterial("#b77a3d", { roughness: 0.9 });
@@ -1310,7 +1336,7 @@ export default function App() {
     const monkeyFaceMat = makeMaterial("#8a5a2a", { roughness: 0.72 });
     const monkeyEarMat = makeMaterial("#c77a3d", { roughness: 0.7 });
     const monkeyBananaMat = makeMaterial("#ffd84d", { roughness: 0.48, emissive: "#5a3900", emissiveIntensity: 0.28 });
-    const monkeyLeafMat = makeMaterial("#4ade80", { roughness: 0.64, emissive: "#0f3d1f", emissiveIntensity: 0.16 });
+    const monkeyLeafMat = makeMaterial("#4ade80", { map: leafVeinTexture, roughness: 0.64, emissive: "#0f3d1f", emissiveIntensity: 0.16 });
     const monkeyEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2200", emissive: "#ff2200", emissiveIntensity: 2.5 });
 
     function addMonkeyTail(group) {
@@ -1420,7 +1446,7 @@ export default function App() {
     });
 
     // Golden pineapple collectibles — torus knot shape, orange glow
-    const pineappleMat = new THREE.MeshStandardMaterial({ color: "#f5a623", emissive: "#f5a623", emissiveIntensity: 1.2, metalness: 0.8, roughness: 0.12 });
+    const pineappleMat = makeMaterial("#f5a623", { map: collectibleGlowTexture, emissive: "#f5a623", emissiveIntensity: 1.35, metalness: 0.8, roughness: 0.12, envMapIntensity: 1.35 });
     LEVEL.collectibles.forEach((col) => {
       const posOnPath = worldPosition(col.localX, col.z);
       const group = new THREE.Group();
@@ -1436,7 +1462,7 @@ export default function App() {
 
     gate.position.set(trackCenter(LEVEL.gate.z), 0, LEVEL.gate.z);
     gate.rotation.y = trackAngle(LEVEL.gate.z);
-    const gateMat = makeMaterial("#d9b863", { roughness: 0.55, emissive: "#4d2f05", emissiveIntensity: 0.2 });
+    const gateMat = makeMaterial("#d9b863", { map: stoneBlockTexture, roughness: 0.55, emissive: "#4d2f05", emissiveIntensity: 0.2, envMapIntensity: 1.15 });
     const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1.2), gateMat);
     pillarL.position.set(-3.6, 3, 0);
     const pillarR = pillarL.clone(); pillarR.position.x = 3.6;
@@ -1455,11 +1481,11 @@ export default function App() {
 
     const player = new THREE.Group();
     scene.add(player);
-    const pink = makeMaterial("#ff4fb3", { roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.08 });
-    const topPink = makeMaterial("#ff78ca", { roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.06 });
-    const bellyPink = makeMaterial("#d83f91", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.04 });
+    const pink = makeMaterial("#ff4fb3", { map: elephantSkinTexture, roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.08 });
+    const topPink = makeMaterial("#ff78ca", { map: elephantSkinTexture, roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.06 });
+    const bellyPink = makeMaterial("#d83f91", { map: elephantSkinTexture, roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.04 });
     const footPink = makeMaterial("#b72874", { roughness: 0.82, emissive: "#1e0210", emissiveIntensity: 0.035 });
-    const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
+    const legPink = makeMaterial("#c83f8e", { map: elephantSkinTexture, roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
     const innerEar = makeMaterial("#ff93d4", { roughness: 0.76 });
     const innerEarGlow = makeMaterial("#ffd0ee", { roughness: 0.66, emissive: "#2f061d", emissiveIntensity: 0.03 });
     const dark = new THREE.MeshBasicMaterial({ color: "#111111" });

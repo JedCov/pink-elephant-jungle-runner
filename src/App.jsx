@@ -57,6 +57,34 @@ const JUNGLE_LAYOUT_SEED = 0x5eed2026;
 
 const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
 
+function createBroadBananaLeafGeometry() {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 1.28);
+  shape.bezierCurveTo(0.58, 0.88, 0.62, -0.58, 0, -1.28);
+  shape.bezierCurveTo(-0.62, -0.58, -0.58, 0.88, 0, 1.28);
+  const geometry = new THREE.ShapeGeometry(shape, 8);
+  geometry.rotateX(-0.08);
+  return geometry;
+}
+
+function createMossClumpGeometry() {
+  const geometry = new THREE.DodecahedronGeometry(0.5, 1);
+  geometry.scale(1.45, 0.34, 0.9);
+  return geometry;
+}
+
+function createLargeForegroundRockGeometry() {
+  const geometry = new THREE.DodecahedronGeometry(1, 1);
+  geometry.scale(1.35, 0.64, 0.92);
+  return geometry;
+}
+
+function createRuinBlockClusterGeometry() {
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  geometry.scale(1.22, 0.82, 0.92);
+  return geometry;
+}
+
 function readStoredAudioState() {
   if (typeof window === "undefined") return { ...DEFAULT_AUDIO_STATE };
   try {
@@ -584,11 +612,11 @@ export default function App() {
       edgeStem: new THREE.CylinderGeometry(0.035, 0.045, 0.5, 5),
       edgeTorchPost: new THREE.CylinderGeometry(0.055, 0.075, 1.0, 6),
       edgeTorchFlame: new THREE.ConeGeometry(0.18, 0.42, 7),
-      broadBananaLeaf: new THREE.PlaneGeometry(0.9, 2.45, 1, 3),
-      hangingVine: new THREE.CylinderGeometry(0.022, 0.032, 1, 5),
-      mossClump: new THREE.DodecahedronGeometry(0.42, 0),
-      foregroundRock: new THREE.DodecahedronGeometry(1, 1),
-      ruinBlockCluster: new THREE.BoxGeometry(1, 1, 1),
+      broadBananaLeaf: createBroadBananaLeafGeometry(),
+      hangingVine: new THREE.CylinderGeometry(0.026, 0.044, 1, 6),
+      mossClump: createMossClumpGeometry(),
+      foregroundRock: createLargeForegroundRockGeometry(),
+      ruinBlockCluster: createRuinBlockClusterGeometry(),
       jungleBaseMist: new THREE.CircleGeometry(1, 18),
       telegraphArrow: new THREE.ConeGeometry(0.38, 0.82, 3),
     };
@@ -896,6 +924,7 @@ export default function App() {
       const depthRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
       const bands = [
         {
+          name: "path-edge rim silhouettes",
           step: 14,
           zOffset: 1.8,
           chance: 0.86,
@@ -910,6 +939,7 @@ export default function App() {
           ruinMat: depthEdgeRuinMat,
         },
         {
+          name: "midground jungle silhouettes",
           step: 20,
           zOffset: -2.6,
           chance: 0.72,
@@ -924,6 +954,7 @@ export default function App() {
           ruinMat: depthMidRuinMat,
         },
         {
+          name: "far background silhouettes",
           step: 28,
           zOffset: -7.2,
           chance: 0.62,
@@ -962,6 +993,8 @@ export default function App() {
             }
             const scale = band.scale[0] + depthRng() * (band.scale[1] - band.scale[0]);
             prop.scale.multiplyScalar(scale);
+            prop.userData.nonCollidingDecoration = true;
+            prop.userData.depthBand = band.name;
             prop.position.x += pos.x;
             prop.position.z += pos.z;
             prop.rotation.y = trackAngle(propZ) + (side < 0 ? -0.28 : 0.28) + (depthRng() - 0.5) * 0.54;

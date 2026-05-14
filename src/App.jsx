@@ -81,7 +81,7 @@ function AudioControls({ audioState, onToggle, compact = false }) {
   const musicMuted = audioState.muted || audioState.musicMuted;
   const sfxMuted = audioState.muted || audioState.sfxMuted;
   const buttonBase = compact
-    ? "pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    ? "hud-action-button pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
     : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
   const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
   const stopGestureStart = (event) => {
@@ -2745,31 +2745,85 @@ export default function App() {
 
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
-        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 right-4 z-20">
+        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 left-3 z-20">
           <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
         </div>
       )}
       {started && !complete && !gameOver && (
-        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2">
-          <div className="hud-tally-cluster flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
-            <span>🍋 <span ref={ui.fruitTally}>0</span></span>
-            <span className="text-amber-100/30">·</span>
-            <span title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></span>
-            <span className="text-amber-100/30">·</span>
-            <span className="hud-score-emphasis" title="Score from fruit, crates, pineapples, and monkeys">⭐ <span ref={ui.scoreTally}>0</span></span>
+        <div className="hud-elephant-ability-badge pointer-events-none absolute bottom-4 right-4 z-20"
+          aria-label="Elephant charge ability status" role="img">
+          <span className="title-elephant-mascot hud-ability-mascot" aria-hidden="true">
+            <span className="title-elephant-sunburst" />
+            <span className="title-elephant-shadow" />
+            <span className="title-elephant-tail" />
+            <span className="title-elephant-ear" />
+            <span className="title-elephant-body" />
+            <span className="title-elephant-head" />
+            <span className="title-elephant-trunk" />
+            <span className="title-elephant-tusk" />
+            <span className="title-elephant-leg title-elephant-leg-back" />
+            <span className="title-elephant-leg title-elephant-leg-front" />
+            <span className="title-elephant-crown" />
+          </span>
+        </div>
+      )}
+      {started && !complete && !gameOver && (
+        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-start justify-between px-4 py-2">
+          <div className="hud-counter-stack flex flex-col gap-2">
+            <div className="hud-icon-row hud-panel-dark">
+              <span className="hud-icon-bubble" aria-hidden="true">🍋</span>
+              <span className="hud-icon-row-label">Fruit</span>
+              <span ref={ui.fruitTally} className="hud-icon-row-value">0</span>
+            </div>
+            <div className="hud-icon-row hud-panel-dark">
+              <span className="hud-icon-bubble" aria-hidden="true">🐘</span>
+              <span className="hud-icon-row-label">Herd</span>
+              <span ref={ui.lives} className="hud-icon-row-value">🐘🐘🐘🐘🐘</span>
+            </div>
+            <div className="hud-icon-row hud-panel-dark hud-next-life-row">
+              <span className="hud-icon-bubble" aria-hidden="true">✨</span>
+              <span className="hud-icon-row-label">Next</span>
+              <span ref={ui.fruit} className="hud-icon-row-value">0/100</span>
+              <span className="hud-fruit-life-track" aria-hidden="true">
+                <span ref={ui.fruitLife} className="hud-fruit-life-fill transition-all duration-150" />
+              </span>
+            </div>
           </div>
           <div ref={ui.sectionBadge} className="hud-section-pill rounded-full px-4 py-1 text-xs font-black uppercase tracking-[0.28em] text-emerald-200">
             Learning Trail
           </div>
-          <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
-            <Icon label="⏱" />
-            <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
-            <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
+          <div className="hud-right-cluster">
+            <div className="hud-control-row pointer-events-auto">
+              <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
+                <Icon label="⏱" />
+                <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
+                <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
+              </div>
+              <button
+                type="button"
+                className="hud-gold-frame-button"
+                onClick={() => setPausedState(true)}
+                aria-label="Pause game and open settings"
+                title="Pause / Settings"
+              >
+                ⚙
+              </button>
+            </div>
+            <div className="hud-score-stack" title="Score from fruit, crates, pineapples, and monkeys">
+              <span className="hud-score-label">Score</span>
+              <span className="hud-score-emphasis hud-gold-outline-text hud-gold-gradient-text" ref={ui.scoreTally}>0</span>
+            </div>
+            <div ref={ui.multiplierBadge}
+              className="hud-multiplier-badge hud-gold-outline-text hud-gold-gradient-text transition-all duration-200"
+              style={{ opacity: 0, transform: "scale(0.85)", color: "#ffd34a" }}>
+              1x COMBO
+            </div>
+            <div className="hud-crate-chip hud-panel-dark" title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></div>
           </div>
         </div>
       )}
 
-      {/* LEFT PANEL — stamina, lives, charge, state */}
+      {/* LEFT PANEL — stamina, charge, state */}
       {started && !complete && !gameOver && (
         <div className="hud-primary-panel pointer-events-none absolute left-3 top-12 z-20 w-52">
           <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
@@ -2777,12 +2831,6 @@ export default function App() {
           </div>
           <div className="h-3 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div ref={ui.health} className="h-full w-full rounded-full transition-all duration-150" />
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
-              <Icon label="💗" size={12} /> Herd
-            </span>
-            <span ref={ui.lives} className="text-sm leading-none">🐘🐘🐘🐘🐘</span>
           </div>
           <div className="my-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }} />
           <div className="mb-1 flex items-center justify-between">
@@ -2800,12 +2848,6 @@ export default function App() {
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.35)" }}>
               Ready
             </span>
-          </div>
-          {/* Multiplier badge */}
-          <div ref={ui.multiplierBadge}
-            className="mt-2 text-center text-[12px] font-black tracking-widest transition-all duration-200"
-            style={{ opacity: 0, transform: "scale(0.85)", color: "#ffd34a" }}>
-            1x COMBO
           </div>
           {/* Momentum label */}
           <div className="mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.5rem" }}>
@@ -2829,17 +2871,6 @@ export default function App() {
           </div>
           <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-amber-100/40">
             <Icon label="🎯" size={12} /> Gate at 760 m
-          </div>
-          <div className="mt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.75rem" }}>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-100/70">Next Life</span>
-              <span ref={ui.fruit} className="text-[10px] font-black text-yellow-100">0/100</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div ref={ui.fruitLife} className="h-full w-0 rounded-full transition-all duration-150"
-                style={{ background: "linear-gradient(90deg, #facc15, #84cc16)" }} />
-            </div>
-            <div className="mt-2 text-[9px] tracking-wider text-yellow-100/40">🍋 100 fruit = bonus elephant</div>
           </div>
         </div>
       )}

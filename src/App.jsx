@@ -24,7 +24,7 @@ import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { createPostProcessing } from "./game/rendering/postprocessing.js";
-import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
+import { makeFoamStreakTexture, makeGroundTexture, makePathTexture, makeWaterRippleTexture } from "./game/rendering/textures.js";
 import {
   createPlayerBody,
   selectPlayerStateLabel,
@@ -81,7 +81,7 @@ function AudioControls({ audioState, onToggle, compact = false }) {
   const musicMuted = audioState.muted || audioState.musicMuted;
   const sfxMuted = audioState.muted || audioState.sfxMuted;
   const buttonBase = compact
-    ? "pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    ? "hud-action-button pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
     : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
   const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
   const stopGestureStart = (event) => {
@@ -176,43 +176,115 @@ function createTrackRibbonGeometry(innerLocalX, outerLocalX, startZ = 14, endZ =
   return geometry;
 }
 
-function makeLowPolyTree(trunkMat, leafMats, geometries, rng = Math.random, scale = 1, castShadow = true) {
+function makeLowPolyTree(trunkMat, leafMats, geometries, rng = Math.random, scale = 1, castShadow = true, mistMat = null) {
   const tree = new THREE.Group();
-  const trunkHeight = 3.3 * scale + rng() * 0.9;
+  const trunkHeight = (2.6 + rng() * 2.4) * scale;
   const trunk = new THREE.Mesh(geometries.trunk, trunkMat);
-  trunk.position.y = 1.55 * scale;
-  trunk.scale.set(scale, trunkHeight, scale);
+  trunk.position.y = trunkHeight * 0.48;
+  trunk.scale.set(scale * (0.72 + rng() * 0.5), trunkHeight, scale * (0.72 + rng() * 0.5));
+  trunk.rotation.z = (rng() - 0.5) * 0.14;
   trunk.castShadow = castShadow;
+  tree.add(trunk);
 
-  const lowerRadius = (1.25 + rng() * 0.65) * scale;
-  const lowerHeight = (2.4 + rng() * 0.5) * scale;
-  const lowerLeaves = new THREE.Mesh(geometries.leaves, leafMats[Math.floor(rng() * leafMats.length)]);
-  lowerLeaves.position.y = 3.55 * scale;
-  lowerLeaves.scale.set(lowerRadius, lowerHeight, lowerRadius);
-  lowerLeaves.castShadow = castShadow;
+  const canopyCount = 5 + Math.floor(rng() * 5);
+  for (let i = 0; i < canopyCount; i += 1) {
+    const canopy = new THREE.Mesh(geometries.bushClump, leafMats[Math.floor(rng() * leafMats.length)]);
+    const angle = rng() * Math.PI * 2;
+    const radius = (0.2 + rng() * 1.2) * scale;
+    const height = trunkHeight * (0.58 + rng() * 0.48);
+    const clumpScale = (0.82 + rng() * 0.9) * scale;
+    canopy.position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius * 0.75);
+    canopy.scale.set(clumpScale * (1.05 + rng() * 0.75), clumpScale * (0.58 + rng() * 0.38), clumpScale * (0.95 + rng() * 0.65));
+    canopy.rotation.set((rng() - 0.5) * 0.32, rng() * Math.PI, (rng() - 0.5) * 0.22);
+    canopy.castShadow = castShadow;
+    tree.add(canopy);
+  }
 
-  const upperRadius = (0.85 + rng() * 0.35) * scale;
-  const upperLeaves = new THREE.Mesh(geometries.leaves, leafMats[Math.floor(rng() * leafMats.length)]);
-  upperLeaves.position.y = 4.85 * scale;
-  upperLeaves.scale.set(upperRadius, 1.85 * scale, upperRadius);
-  upperLeaves.castShadow = castShadow;
+  const crown = new THREE.Mesh(geometries.bushClump, leafMats[Math.floor(rng() * leafMats.length)]);
+  const crownScale = (1.25 + rng() * 0.8) * scale;
+  crown.position.y = trunkHeight * (0.96 + rng() * 0.08);
+  crown.scale.set(crownScale * 1.18, crownScale * 0.72, crownScale);
+  crown.rotation.y = rng() * Math.PI;
+  crown.castShadow = castShadow;
+  tree.add(crown);
 
-  tree.add(trunk, lowerLeaves, upperLeaves);
+  if (geometries.broadLeaf && rng() < 0.82) {
+    const leafCount = 2 + Math.floor(rng() * 4);
+    for (let i = 0; i < leafCount; i += 1) {
+      const leaf = new THREE.Mesh(geometries.broadLeaf, leafMats[Math.floor(rng() * leafMats.length)]);
+      leaf.position.set((rng() - 0.5) * 2.6 * scale, trunkHeight * (0.46 + rng() * 0.45), (rng() - 0.5) * 1.8 * scale);
+      leaf.scale.set((0.55 + rng() * 0.52) * scale, (0.6 + rng() * 0.72) * scale, 1);
+      leaf.rotation.set(-0.48 - rng() * 0.42, rng() * Math.PI * 2, (rng() - 0.5) * 0.78);
+      leaf.castShadow = castShadow;
+      tree.add(leaf);
+    }
+  }
+
+  if (geometries.vine && rng() < 0.9) {
+    const vineCount = 2 + Math.floor(rng() * 4);
+    for (let i = 0; i < vineCount; i += 1) {
+      const length = (1.3 + rng() * 2.6) * scale;
+      const vine = new THREE.Mesh(geometries.vine, geometries.vineMaterial ?? trunkMat);
+      const angle = rng() * Math.PI * 2;
+      vine.position.set(Math.cos(angle) * (0.55 + rng() * 0.95) * scale, trunkHeight * (0.76 + rng() * 0.26) - length * 0.5, Math.sin(angle) * (0.45 + rng() * 0.75) * scale);
+      vine.scale.set(1.1 + rng() * 0.9, length, 1.1 + rng() * 0.9);
+      vine.rotation.z = (rng() - 0.5) * 0.16;
+      vine.castShadow = castShadow;
+      tree.add(vine);
+    }
+  }
+
+  if (geometries.baseMist && mistMat && rng() < 0.7) {
+    const mist = new THREE.Mesh(geometries.baseMist, mistMat);
+    const mistScale = (2.2 + rng() * 2.8) * scale;
+    mist.rotation.x = -Math.PI / 2;
+    mist.rotation.z = rng() * Math.PI;
+    mist.position.y = 0.055 + rng() * 0.04;
+    mist.scale.set(mistScale * (1.0 + rng() * 0.45), mistScale * (0.58 + rng() * 0.24), 1);
+    mist.renderOrder = 1;
+    tree.add(mist);
+  }
+
   tree.rotation.y = rng() * Math.PI;
   return tree;
 }
 
-function makeLowPolyBush(leafMats, geometries, rng = Math.random, scale = 1, castShadow = true) {
+function makeLowPolyBush(leafMats, geometries, rng = Math.random, scale = 1, castShadow = true, mistMat = null) {
   const bush = new THREE.Group();
-  const clumpCount = 2 + Math.floor(rng() * 3);
-  for (let i = 0; i < clumpCount; i++) {
-    const radius = (0.55 + rng() * 0.45) * scale;
+  const clumpCount = 4 + Math.floor(rng() * 5);
+  for (let i = 0; i < clumpCount; i += 1) {
+    const radius = (0.45 + rng() * 0.58) * scale;
     const clump = new THREE.Mesh(geometries.bushClump, leafMats[Math.floor(rng() * leafMats.length)]);
-    clump.position.set((rng() - 0.5) * 1.2 * scale, 0.45 * scale + rng() * 0.28 * scale, (rng() - 0.5) * 1.2 * scale);
-    clump.scale.set(radius, radius * (0.72 + rng() * 0.38), radius);
+    clump.position.set((rng() - 0.5) * 1.9 * scale, 0.32 * scale + rng() * 0.52 * scale, (rng() - 0.5) * 1.55 * scale);
+    clump.scale.set(radius * (1.1 + rng() * 0.75), radius * (0.58 + rng() * 0.36), radius * (0.9 + rng() * 0.55));
+    clump.rotation.set((rng() - 0.5) * 0.24, rng() * Math.PI, (rng() - 0.5) * 0.18);
     clump.castShadow = castShadow;
     bush.add(clump);
   }
+
+  if (geometries.broadLeaf && rng() < 0.7) {
+    const leafCount = 1 + Math.floor(rng() * 3);
+    for (let i = 0; i < leafCount; i += 1) {
+      const leaf = new THREE.Mesh(geometries.broadLeaf, leafMats[Math.floor(rng() * leafMats.length)]);
+      leaf.position.set((rng() - 0.5) * 1.8 * scale, 0.72 * scale + rng() * 0.45 * scale, (rng() - 0.5) * 1.3 * scale);
+      leaf.scale.set((0.3 + rng() * 0.34) * scale, (0.36 + rng() * 0.48) * scale, 1);
+      leaf.rotation.set(-0.62 - rng() * 0.34, rng() * Math.PI * 2, (rng() - 0.5) * 0.75);
+      leaf.castShadow = castShadow;
+      bush.add(leaf);
+    }
+  }
+
+  if (geometries.baseMist && mistMat && rng() < 0.38) {
+    const mist = new THREE.Mesh(geometries.baseMist, mistMat);
+    const mistScale = (1.45 + rng() * 1.25) * scale;
+    mist.rotation.x = -Math.PI / 2;
+    mist.rotation.z = rng() * Math.PI;
+    mist.position.y = 0.045;
+    mist.scale.set(mistScale * 1.3, mistScale * 0.62, 1);
+    mist.renderOrder = 1;
+    bush.add(mist);
+  }
+
   return bush;
 }
 
@@ -490,7 +562,7 @@ export default function App() {
     const pooledParticleGeometry = new THREE.SphereGeometry(1, 8, 8);
     const sharedGeometries = {
       treeTrunk: new THREE.CylinderGeometry(0.22, 0.38, 1, 7),
-      treeLeaves: new THREE.ConeGeometry(1, 1, 7),
+      treeLeaves: new THREE.DodecahedronGeometry(1, 0),
       bushClump: new THREE.DodecahedronGeometry(1, 0),
       canopy: new THREE.DodecahedronGeometry(1, 0),
       fruit: new THREE.OctahedronGeometry(0.38, 0),
@@ -512,12 +584,21 @@ export default function App() {
       edgeStem: new THREE.CylinderGeometry(0.035, 0.045, 0.5, 5),
       edgeTorchPost: new THREE.CylinderGeometry(0.055, 0.075, 1.0, 6),
       edgeTorchFlame: new THREE.ConeGeometry(0.18, 0.42, 7),
+      broadBananaLeaf: new THREE.PlaneGeometry(0.9, 2.45, 1, 3),
+      hangingVine: new THREE.CylinderGeometry(0.022, 0.032, 1, 5),
+      mossClump: new THREE.DodecahedronGeometry(0.42, 0),
+      foregroundRock: new THREE.DodecahedronGeometry(1, 1),
+      ruinBlockCluster: new THREE.BoxGeometry(1, 1, 1),
+      jungleBaseMist: new THREE.CircleGeometry(1, 18),
       telegraphArrow: new THREE.ConeGeometry(0.38, 0.82, 3),
     };
     const sharedTreeGeometries = {
       trunk: sharedGeometries.treeTrunk,
       leaves: sharedGeometries.treeLeaves,
       bushClump: sharedGeometries.bushClump,
+      broadLeaf: sharedGeometries.broadBananaLeaf,
+      vine: sharedGeometries.hangingVine,
+      baseMist: sharedGeometries.jungleBaseMist,
     };
     const MAX_PICKUP_POINT_LIGHTS = 4;
     let pickupPointLights = 0;
@@ -551,14 +632,88 @@ export default function App() {
       particlePool.push({ mesh, active: false, life: 0, startLife: 1, vx: 0, vy: 0, vz: 0 });
     }
 
-    const riverMat = new THREE.MeshStandardMaterial({ color: "#237cb4", roughness: 0.35, metalness: 0.08, transparent: true, opacity: 0.82, emissive: "#0a3352", emissiveIntensity: 0.25 });
-    LEVEL.rivers.forEach((river) => {
+    const waterRippleTexture = makeWaterRippleTexture();
+    const foamStreakTexture = makeFoamStreakTexture();
+    const riverMat = new THREE.MeshStandardMaterial({
+      color: "#5fc9ff",
+      map: waterRippleTexture,
+      roughness: 0.28,
+      metalness: 0.04,
+      transparent: true,
+      opacity: 0.88,
+      emissive: "#0b4d78",
+      emissiveIntensity: 0.34,
+    });
+    const foamMat = new THREE.MeshBasicMaterial({
+      color: "#f3fdff",
+      map: foamStreakTexture,
+      transparent: true,
+      opacity: 0.54,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const waterfallMat = new THREE.MeshBasicMaterial({
+      color: "#8ee8ff",
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const waterfallMistMat = new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    LEVEL.rivers.forEach((river, riverIndex) => {
       const cx = trackCenter(river.z);
+      const riverGroup = new THREE.Group();
+      riverGroup.position.set(cx, 0, river.z);
+      riverGroup.rotation.y = trackAngle(river.z);
+      scene.add(riverGroup);
+
       const water = new THREE.Mesh(new THREE.BoxGeometry(river.width, 0.12, river.depth), riverMat);
-      water.position.set(cx, 0.08, river.z);
-      water.rotation.y = trackAngle(river.z);
+      water.position.y = 0.08;
       water.receiveShadow = true;
-      scene.add(water);
+      riverGroup.add(water);
+
+      [-1, 1].forEach((edgeSide) => {
+        const edgeFoam = new THREE.Mesh(new THREE.PlaneGeometry(river.width * 0.96, 0.46), foamMat);
+        edgeFoam.rotation.x = -Math.PI / 2;
+        edgeFoam.position.set(0, 0.165, edgeSide * (river.depth / 2 - 0.2));
+        edgeFoam.renderOrder = 2;
+        riverGroup.add(edgeFoam);
+      });
+
+      river.crocs.forEach((croc) => {
+        const wake = new THREE.Mesh(new THREE.PlaneGeometry(0.72, river.depth * 0.82), foamMat);
+        wake.rotation.x = -Math.PI / 2;
+        wake.position.set(croc.localX, 0.18, 0);
+        wake.renderOrder = 2;
+        riverGroup.add(wake);
+      });
+
+      if (riverIndex % 2 === 0) {
+        const side = riverIndex % 4 === 0 ? -1 : 1;
+        const falls = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * 0.72, 1.65), waterfallMat);
+        falls.rotation.y = Math.PI / 2;
+        falls.position.set(side * (river.width / 2 + 0.18), 0.62, -river.depth * 0.04);
+        riverGroup.add(falls);
+
+        const mist = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * 0.58, 0.34), waterfallMistMat);
+        mist.rotation.x = -Math.PI / 2;
+        mist.position.set(side * (river.width / 2 + 0.22), 0.13, -river.depth * 0.04);
+        riverGroup.add(mist);
+
+        for (let step = 0; step < 3; step += 1) {
+          const drop = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * (0.42 - step * 0.06), 0.2), waterfallMistMat);
+          drop.rotation.x = -Math.PI / 2;
+          drop.position.set(side * (river.width / 2 + 0.34 + step * 0.28), 0.12 + step * 0.16, -river.depth * 0.05);
+          riverGroup.add(drop);
+        }
+      }
+
       river.crocs.forEach((croc) => {
         const group = new THREE.Group();
         const crocMat = makeMaterial("#315b2c");
@@ -581,6 +736,9 @@ export default function App() {
     scene.add(treeGroup);
     const trunkMat = makeMaterial("#5d371d");
     const leafMats = [makeMaterial("#1e8d47"), makeMaterial("#2fa55a"), makeMaterial("#176b3c"), makeMaterial("#0f5b33")];
+    const jungleVineMat = makeMaterial("#2f6b36", { roughness: 0.96 });
+    const jungleMistMat = new THREE.MeshBasicMaterial({ color: "#d7ffe7", transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
+    sharedTreeGeometries.vineMaterial = jungleVineMat;
     const jungleRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
 
     const edgePropGroup = new THREE.Group();
@@ -595,6 +753,21 @@ export default function App() {
     const edgeTorchPostMat = makeMaterial("#4a2b16", { roughness: 0.86 });
     const edgeTorchFlameMat = new THREE.MeshStandardMaterial({ color: "#ffcf58", roughness: 0.35, emissive: "#ff8c1a", emissiveIntensity: 1.45 });
     const edgeLipHighlightMat = makeMaterial("#ffc66d", { roughness: 0.82, emissive: "#4f2500", emissiveIntensity: 0.18 });
+    const depthEdgeLeafMat = new THREE.MeshStandardMaterial({ color: "#4bea70", roughness: 0.74, emissive: "#bfff6d", emissiveIntensity: 0.22, side: THREE.DoubleSide });
+    const depthEdgeVineMat = makeMaterial("#47d667", { roughness: 0.88, emissive: "#cffc7a", emissiveIntensity: 0.14 });
+    const depthEdgeMossMat = makeMaterial("#72f052", { roughness: 0.96, emissive: "#efff9a", emissiveIntensity: 0.1 });
+    const depthEdgeRockMat = makeMaterial("#9f986f", { roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
+    const depthEdgeRuinMat = makeMaterial("#8f936c", { roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
+    const depthMidLeafMat = new THREE.MeshStandardMaterial({ color: "#1f7b42", roughness: 0.9, side: THREE.DoubleSide });
+    const depthMidVineMat = makeMaterial("#23683b", { roughness: 0.96 });
+    const depthMidMossMat = makeMaterial("#3f7f35", { roughness: 1 });
+    const depthMidRockMat = makeMaterial("#696b58", { roughness: 1 });
+    const depthMidRuinMat = makeMaterial("#5d6651", { roughness: 0.98 });
+    const depthFarLeafMat = new THREE.MeshStandardMaterial({ color: "#18351f", roughness: 1, side: THREE.DoubleSide });
+    const depthFarVineMat = makeMaterial("#142b1c", { roughness: 1 });
+    const depthFarMossMat = makeMaterial("#223a21", { roughness: 1 });
+    const depthFarRockMat = makeMaterial("#343a31", { roughness: 1 });
+    const depthFarRuinMat = makeMaterial("#30372f", { roughness: 1 });
 
     function trackCurvatureCue(z) {
       return Math.abs(trackAngle(z - 18) - trackAngle(z + 18));
@@ -631,6 +804,171 @@ export default function App() {
       flame.castShadow = true;
       torch.add(post, flame);
       return torch;
+    }
+
+    function makeBananaLeafCluster(rng, material, count = 5) {
+      const cluster = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const leaf = new THREE.Mesh(sharedGeometries.broadBananaLeaf, material);
+        leaf.position.set((rng() - 0.5) * 1.45, 1.05 + rng() * 0.75, (rng() - 0.5) * 0.56);
+        leaf.rotation.set(-0.55 - rng() * 0.28, rng() * Math.PI * 2, (rng() - 0.5) * 0.62);
+        leaf.scale.set(0.82 + rng() * 0.55, 0.92 + rng() * 0.7, 1);
+        leaf.castShadow = true;
+        cluster.add(leaf);
+      }
+      return cluster;
+    }
+
+    function makeHangingVineCurtain(rng, vineMaterial, leafMaterial, vineCount = 5) {
+      const curtain = new THREE.Group();
+      for (let i = 0; i < vineCount; i += 1) {
+        const length = 1.65 + rng() * 2.45;
+        const vine = new THREE.Mesh(sharedGeometries.hangingVine, vineMaterial);
+        vine.position.set((i - (vineCount - 1) / 2) * (0.28 + rng() * 0.1), 1.9 - length * 0.5 + rng() * 0.38, (rng() - 0.5) * 0.32);
+        vine.scale.set(0.7 + rng() * 0.65, length, 0.7 + rng() * 0.65);
+        vine.rotation.z = (rng() - 0.5) * 0.18;
+        vine.castShadow = true;
+        curtain.add(vine);
+        if (rng() < 0.45) {
+          const leaf = new THREE.Mesh(sharedGeometries.broadBananaLeaf, leafMaterial);
+          leaf.position.set(vine.position.x + (rng() - 0.5) * 0.32, vine.position.y - length * 0.24, vine.position.z + 0.05);
+          leaf.rotation.set(-0.35, rng() * Math.PI * 2, (rng() - 0.5) * 0.72);
+          leaf.scale.set(0.32 + rng() * 0.22, 0.38 + rng() * 0.28, 1);
+          leaf.castShadow = true;
+          curtain.add(leaf);
+        }
+      }
+      return curtain;
+    }
+
+    function makeMossPatch(rng, material, count = 7) {
+      const patch = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const moss = new THREE.Mesh(sharedGeometries.mossClump, material);
+        const scale = 0.45 + rng() * 0.8;
+        moss.position.set((rng() - 0.5) * 1.8, 0.08 + rng() * 0.12, (rng() - 0.5) * 1.4);
+        moss.scale.set(scale * (1.2 + rng() * 0.6), scale * 0.28, scale * (0.8 + rng() * 0.45));
+        moss.rotation.y = rng() * Math.PI;
+        moss.receiveShadow = true;
+        patch.add(moss);
+      }
+      return patch;
+    }
+
+    function makeLargeRockPile(rng, rockMaterial, mossMaterial, count = 3) {
+      const pile = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const rock = new THREE.Mesh(sharedGeometries.foregroundRock, rockMaterial);
+        const scale = 0.8 + rng() * 1.2;
+        rock.position.set((rng() - 0.5) * 1.7, scale * 0.28, (rng() - 0.5) * 1.2);
+        rock.scale.set(scale * (1.0 + rng() * 0.6), scale * (0.42 + rng() * 0.25), scale * (0.7 + rng() * 0.5));
+        rock.rotation.set((rng() - 0.5) * 0.28, rng() * Math.PI, (rng() - 0.5) * 0.22);
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        pile.add(rock);
+      }
+      const moss = makeMossPatch(rng, mossMaterial, 3 + Math.floor(rng() * 4));
+      moss.position.y = 0.46;
+      pile.add(moss);
+      return pile;
+    }
+
+    function makeRuinBlockCluster(rng, blockMaterial, mossMaterial, blockCount = 4) {
+      const ruin = new THREE.Group();
+      for (let i = 0; i < blockCount; i += 1) {
+        const block = new THREE.Mesh(sharedGeometries.ruinBlockCluster, blockMaterial);
+        const width = 0.65 + rng() * 0.8;
+        const height = 0.42 + rng() * 1.0;
+        block.position.set((rng() - 0.5) * 2.0, height * 0.5 - 0.02, (rng() - 0.5) * 1.25);
+        block.scale.set(width, height, 0.55 + rng() * 0.72);
+        block.rotation.y = (rng() - 0.5) * 0.36;
+        block.castShadow = true;
+        block.receiveShadow = true;
+        ruin.add(block);
+      }
+      const moss = makeMossPatch(rng, mossMaterial, 4 + Math.floor(rng() * 3));
+      moss.position.set(0, 0.18, 0);
+      ruin.add(moss);
+      return ruin;
+    }
+
+    function addJungleDepthProps() {
+      const depthRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
+      const bands = [
+        {
+          step: 14,
+          zOffset: 1.8,
+          chance: 0.86,
+          minX: safeHalfWidth + 1.65,
+          maxX: safeHalfWidth + 4.15,
+          scale: [1.05, 1.45],
+          group: edgePropGroup,
+          leafMat: depthEdgeLeafMat,
+          vineMat: depthEdgeVineMat,
+          mossMat: depthEdgeMossMat,
+          rockMat: depthEdgeRockMat,
+          ruinMat: depthEdgeRuinMat,
+        },
+        {
+          step: 20,
+          zOffset: -2.6,
+          chance: 0.72,
+          minX: 9.2,
+          maxX: 15.8,
+          scale: [1.55, 2.35],
+          group: treeGroup,
+          leafMat: depthMidLeafMat,
+          vineMat: depthMidVineMat,
+          mossMat: depthMidMossMat,
+          rockMat: depthMidRockMat,
+          ruinMat: depthMidRuinMat,
+        },
+        {
+          step: 28,
+          zOffset: -7.2,
+          chance: 0.62,
+          minX: 18.0,
+          maxX: 30.0,
+          scale: [2.45, 3.8],
+          group: treeGroup,
+          leafMat: depthFarLeafMat,
+          vineMat: depthFarVineMat,
+          mossMat: depthFarMossMat,
+          rockMat: depthFarRockMat,
+          ruinMat: depthFarRuinMat,
+        },
+      ];
+
+      bands.forEach((band, bandIndex) => {
+        for (let z = 8 - bandIndex * 4; z > -812; z -= band.step) {
+          [-1, 1].forEach((side) => {
+            if (depthRng() > band.chance) return;
+            const propZ = z + band.zOffset + (depthRng() - 0.5) * band.step * 0.56;
+            const localX = side * (band.minX + depthRng() * (band.maxX - band.minX));
+            const pos = worldPosition(localX, propZ);
+            let prop;
+            const roll = depthRng();
+            if (roll < 0.26) {
+              prop = makeBananaLeafCluster(depthRng, band.leafMat, 4 + Math.floor(depthRng() * 4));
+            } else if (roll < 0.48) {
+              prop = makeHangingVineCurtain(depthRng, band.vineMat, band.leafMat, 4 + Math.floor(depthRng() * 4));
+              prop.position.y = 0.8 + bandIndex * 0.65;
+            } else if (roll < 0.66) {
+              prop = makeLargeRockPile(depthRng, band.rockMat, band.mossMat, 2 + Math.floor(depthRng() * 4));
+            } else if (roll < 0.84) {
+              prop = makeRuinBlockCluster(depthRng, band.ruinMat, band.mossMat, 3 + Math.floor(depthRng() * 4));
+            } else {
+              prop = makeMossPatch(depthRng, band.mossMat, 5 + Math.floor(depthRng() * 6));
+            }
+            const scale = band.scale[0] + depthRng() * (band.scale[1] - band.scale[0]);
+            prop.scale.multiplyScalar(scale);
+            prop.position.x += pos.x;
+            prop.position.z += pos.z;
+            prop.rotation.y = trackAngle(propZ) + (side < 0 ? -0.28 : 0.28) + (depthRng() - 0.5) * 0.54;
+            band.group.add(prop);
+          });
+        }
+      });
     }
 
     function addEdgeGuidanceProps() {
@@ -695,25 +1033,26 @@ export default function App() {
     }
 
     addEdgeGuidanceProps();
+    addJungleDepthProps();
 
     for (let z = 16; z > -824; z -= 8) {
       [-1, 1].forEach((side) => {
         const jitterZ = z + jungleRng() * 5 - 2.5;
-        const nearTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 0.95 + jungleRng() * 0.35);
+        const nearTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 0.95 + jungleRng() * 0.35, true, jungleMistMat);
         nearTree.position.set(worldX(side * (7.1 + jungleRng() * 3.1), jitterZ), 0, jitterZ);
         treeGroup.add(nearTree);
 
         const backTreeZ = jitterZ - 2 + jungleRng() * 4;
-        const backTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 0.82 + jungleRng() * 0.5, false);
+        const backTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 0.82 + jungleRng() * 0.5, false, jungleMistMat);
         backTree.position.set(worldX(side * (12.2 + jungleRng() * 6.4), backTreeZ), 0, backTreeZ);
         treeGroup.add(backTree);
 
-        const bush = makeLowPolyBush(leafMats, sharedTreeGeometries, jungleRng, 0.9 + jungleRng() * 0.55);
+        const bush = makeLowPolyBush(leafMats, sharedTreeGeometries, jungleRng, 0.9 + jungleRng() * 0.55, true, jungleMistMat);
         bush.position.set(worldX(side * (6.45 + jungleRng() * 2.0), jitterZ + 1.4), 0.02, jitterZ + 1.4);
         treeGroup.add(bush);
 
         if (Math.abs(z % 24) < 0.1) {
-          const foregroundTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 1.55 + jungleRng() * 0.35);
+          const foregroundTree = makeLowPolyTree(trunkMat, leafMats, sharedTreeGeometries, jungleRng, 1.55 + jungleRng() * 0.35, true, jungleMistMat);
           foregroundTree.position.set(worldX(side * (8.8 + jungleRng() * 2.5), jitterZ), 0, jitterZ);
           treeGroup.add(foregroundTree);
         }
@@ -1115,6 +1454,49 @@ export default function App() {
     belly.scale.set(1.08, 0.34, 1.1);
     belly.castShadow = true;
     bodyMesh.add(backHighlight, belly);
+    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
+
+    const makeSegmentBetween = (from, to, topRadius, bottomRadius, material, radialSegments = 8) => {
+      const direction = new THREE.Vector3().subVectors(to, from);
+      const segment = new THREE.Mesh(new THREE.CylinderGeometry(topRadius, bottomRadius, direction.length(), radialSegments, 1), material);
+      segment.position.copy(from).addScaledVector(direction, 0.5);
+      segment.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+      segment.castShadow = true;
+      return segment;
+    };
+
+    const bodyGeo = new THREE.CapsuleGeometry(0.7, 1.65, 4, 10);
+    bodyGeo.rotateX(Math.PI / 2);
+    bodyGeo.scale(1.04, 0.82, 1.02);
+    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
+    bodyMesh.position.y = 1.08;
+    bodyMesh.castShadow = true;
+    const backHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.66, 10, 7), topPink);
+    backHighlight.position.set(0, 0.25, 0.1);
+    backHighlight.scale.set(0.92, 0.38, 1.62);
+    backHighlight.castShadow = true;
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 7), bellyPink);
+    belly.position.set(0, -0.42, -0.18);
+    belly.scale.set(1.08, 0.34, 1.1);
+    belly.castShadow = true;
+    bodyMesh.add(backHighlight, belly);
+    const pink = makeMaterial("#ff69c2", { roughness: 0.54, emissive: "#4a0628", emissiveIntensity: 0.09 });
+    const bellyPink = makeMaterial("#d94a9a", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.045 });
+    const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
+    const innerEar = makeMaterial("#ff9fdb", { roughness: 0.78 });
+    const innerEarGlow = makeMaterial("#ffd1f0", { roughness: 0.68, emissive: "#2f061d", emissiveIntensity: 0.035 });
+    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
+
+    const bodyGeo = new THREE.DodecahedronGeometry(1, 1);
+    bodyGeo.scale(1.12, 1.04, 1.42);
+    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
+    bodyMesh.position.y = 1.08; bodyMesh.castShadow = true;
+    const bellyGeo = new THREE.SphereGeometry(0.74, 10, 8);
+    bellyGeo.scale(1.18, 0.62, 0.76);
+    const belly = new THREE.Mesh(bellyGeo, bellyPink);
+    belly.position.set(0, -0.2, -0.6);
+    belly.castShadow = true;
+    bodyMesh.add(belly);
     player.add(bodyMesh);
 
     [-1, 1].forEach((side) => {
@@ -1125,6 +1507,9 @@ export default function App() {
       const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 7), pink);
       haunch.position.set(side * 0.76, 0.98, 0.96);
       haunch.scale.set(0.78, 0.88, 0.9);
+      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), bellyPink);
+      haunch.position.set(side * 1.02, 1.02, 1.05);
+      haunch.scale.set(0.82, 0.95, 0.9);
       haunch.castShadow = true;
       player.add(shoulder, haunch);
     });
@@ -1132,6 +1517,7 @@ export default function App() {
     const legCoreGeo = new THREE.CapsuleGeometry(0.2, 0.48, 3, 7);
     const pawGeo = new THREE.SphereGeometry(0.26, 8, 6);
     const toeGeo = new THREE.SphereGeometry(0.055, 6, 4);
+    const legGeo = new THREE.CapsuleGeometry(0.24, 0.52, 3, 8);
     const legAnchors = [
       [-0.66, 0.34, -0.82, 0],
       [0.66, 0.34, -0.82, Math.PI],
@@ -1157,6 +1543,7 @@ export default function App() {
         leg.add(toe);
       });
       leg.add(legCore, paw);
+      const leg = new THREE.Mesh(legGeo, legPink);
       leg.position.set(x, y, z);
       player.add(leg);
       return { mesh: leg, baseX: x, baseY: y, baseZ: z, phase };
@@ -1172,6 +1559,13 @@ export default function App() {
     tailTip.position.set(-0.22, -0.34, 0.9);
     tailTip.scale.set(1.35, 0.62, 0.82);
     tailTip.rotation.z = -0.55;
+    tail.position.set(0, 1.28, 1.54);
+    const tailMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.56, 3, 7), pink);
+    tailMesh.position.z = 0.32;
+    tailMesh.rotation.x = Math.PI / 2;
+    tailMesh.castShadow = true;
+    const tailTip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), innerEarGlow);
+    tailTip.position.z = 0.72;
     tailTip.castShadow = true;
     tail.add(tailTip);
     player.add(tail);
@@ -1242,6 +1636,72 @@ export default function App() {
     const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
     trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
     trunkHighlight.scale.set(1.3, 0.78, 0.9);
+    head.add(earL, earR, inL, inR);
+
+    const trunk = new THREE.Group();
+    trunk.position.set(0, -0.08, -0.5);
+    const trunkPoints = [
+      new THREE.Vector3(0, -0.02, -0.02),
+      new THREE.Vector3(0, -0.24, -0.2),
+      new THREE.Vector3(0, -0.38, -0.42),
+      new THREE.Vector3(0, -0.3, -0.62),
+      new THREE.Vector3(0, -0.12, -0.72),
+    ];
+    const trunkRadii = [0.21, 0.18, 0.15, 0.12, 0.09];
+    for (let i = 0; i < trunkPoints.length - 1; i++) {
+      trunk.add(makeSegmentBetween(trunkPoints[i], trunkPoints[i + 1], trunkRadii[i], trunkRadii[i + 1], i < 2 ? pink : bellyPink, 8));
+    }
+    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
+    trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
+    trunkHighlight.scale.set(1.3, 0.78, 0.9);
+    const headGeo = new THREE.SphereGeometry(0.82, 12, 9);
+    headGeo.scale(0.95, 0.9, 0.9);
+    const headMesh = new THREE.Mesh(headGeo, pink);
+    headMesh.castShadow = true;
+    head.add(headMesh);
+
+    const earGeo = new THREE.SphereGeometry(0.72, 12, 8);
+    earGeo.scale(0.92, 1.16, 0.16);
+    const innerEarGeo = new THREE.SphereGeometry(0.52, 10, 7);
+    innerEarGeo.scale(0.84, 1.08, 0.11);
+    const innerEarGlowGeo = new THREE.SphereGeometry(0.34, 8, 6);
+    innerEarGlowGeo.scale(0.76, 0.98, 0.08);
+    const earL = new THREE.Mesh(earGeo, pink);
+    const earR = new THREE.Mesh(earGeo, pink);
+    earL.position.set(-1.08, -0.02, 0.12); earR.position.set(1.08, -0.02, 0.12);
+    earL.rotation.y = -0.34; earR.rotation.y = 0.34;
+    earL.castShadow = true; earR.castShadow = true;
+    const inL = new THREE.Group();
+    const inR = new THREE.Group();
+    const innerL = new THREE.Mesh(innerEarGeo, innerEar);
+    const innerR = innerL.clone();
+    innerL.position.z = -0.035; innerR.position.z = -0.035;
+    const innerGlowL = new THREE.Mesh(innerEarGlowGeo, innerEarGlow);
+    const innerGlowR = innerGlowL.clone();
+    innerGlowL.position.set(0, 0.1, -0.06); innerGlowR.position.copy(innerGlowL.position);
+    inL.add(innerL, innerGlowL); inR.add(innerR, innerGlowR);
+    inL.position.copy(earL.position); inR.position.copy(earR.position);
+    inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
+    head.add(earL, earR, inL, inR);
+
+    const trunk = new THREE.Group();
+    trunk.position.set(0, -0.12, -0.74);
+    const trunkSegments = [
+      { y: -0.24, z: -0.08, length: 0.5, top: 0.3, bottom: 0.27, rx: -0.1 },
+      { y: -0.68, z: -0.18, length: 0.52, top: 0.27, bottom: 0.23, rx: -0.24 },
+      { y: -1.08, z: -0.35, length: 0.48, top: 0.23, bottom: 0.19, rx: -0.38 },
+      { y: -1.4, z: -0.58, length: 0.42, top: 0.19, bottom: 0.16, rx: -0.58 },
+    ];
+    trunkSegments.forEach(({ y, z, length, top, bottom, rx }, index) => {
+      const segment = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, length, 8, 1), index < 2 ? pink : bellyPink);
+      segment.position.set(0, y, z);
+      segment.rotation.x = rx;
+      segment.castShadow = true;
+      trunk.add(segment);
+    });
+    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), innerEarGlow);
+    trunkHighlight.position.set(0, -1.6, -0.7);
+    trunkHighlight.scale.set(1.25, 0.7, 0.82);
     trunkHighlight.castShadow = true;
     trunk.add(trunkHighlight);
     head.add(trunk);
@@ -1250,6 +1710,10 @@ export default function App() {
     eyeL.position.set(-0.24, 0.16, -0.5);
     eyeL.scale.set(0.78, 1.08, 0.62);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.24;
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), dark);
+    eyeL.position.set(-0.38, 0.23, -0.76);
+    eyeL.scale.set(0.82, 1.08, 0.7);
+    const eyeR = eyeL.clone(); eyeR.position.x = 0.38;
     head.add(eyeL, eyeR);
 
     const tuskGeo = new THREE.CylinderGeometry(0.035, 0.075, 0.46, 5);
@@ -1797,6 +2261,8 @@ export default function App() {
 
     function updateMeshes(dt, now) {
       const t = now * 0.001;
+      waterRippleTexture.offset.set((t * 0.045) % 1, (t * 0.16) % 1);
+      foamStreakTexture.offset.set((t * -0.08) % 1, (t * 0.24) % 1);
       updateCrocs(now);
       const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const sliding = body.slideTimer > 0;
@@ -1836,6 +2302,7 @@ export default function App() {
       topPink.color.set(hurtFlash ? "#ffffff" : "#ff78ca");
       bellyPink.color.set(hurtFlash ? "#ffffff" : "#d83f91");
       footPink.color.set(hurtFlash ? "#ffffff" : "#b72874");
+      pink.color.set(hurtState && Math.floor(t * 14) % 2 === 0 ? "#ffffff" : "#ff69c2");
 
       shadow.position.set(body.x, 0.025, body.z);
       const air = clamp((body.y - CONFIG.playerSize / 2) / 5, 0, 1);
@@ -2401,31 +2868,85 @@ export default function App() {
 
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
-        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 right-4 z-20">
+        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 left-3 z-20">
           <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
         </div>
       )}
       {started && !complete && !gameOver && (
-        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2">
-          <div className="hud-tally-cluster flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
-            <span>🍋 <span ref={ui.fruitTally}>0</span></span>
-            <span className="text-amber-100/30">·</span>
-            <span title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></span>
-            <span className="text-amber-100/30">·</span>
-            <span className="hud-score-emphasis" title="Score from fruit, crates, pineapples, and monkeys">⭐ <span ref={ui.scoreTally}>0</span></span>
+        <div className="hud-elephant-ability-badge pointer-events-none absolute bottom-4 right-4 z-20"
+          aria-label="Elephant charge ability status" role="img">
+          <span className="title-elephant-mascot hud-ability-mascot" aria-hidden="true">
+            <span className="title-elephant-sunburst" />
+            <span className="title-elephant-shadow" />
+            <span className="title-elephant-tail" />
+            <span className="title-elephant-ear" />
+            <span className="title-elephant-body" />
+            <span className="title-elephant-head" />
+            <span className="title-elephant-trunk" />
+            <span className="title-elephant-tusk" />
+            <span className="title-elephant-leg title-elephant-leg-back" />
+            <span className="title-elephant-leg title-elephant-leg-front" />
+            <span className="title-elephant-crown" />
+          </span>
+        </div>
+      )}
+      {started && !complete && !gameOver && (
+        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-start justify-between px-4 py-2">
+          <div className="hud-counter-stack flex flex-col gap-2">
+            <div className="hud-icon-row hud-panel-dark">
+              <span className="hud-icon-bubble" aria-hidden="true">🍋</span>
+              <span className="hud-icon-row-label">Fruit</span>
+              <span ref={ui.fruitTally} className="hud-icon-row-value">0</span>
+            </div>
+            <div className="hud-icon-row hud-panel-dark">
+              <span className="hud-icon-bubble" aria-hidden="true">🐘</span>
+              <span className="hud-icon-row-label">Herd</span>
+              <span ref={ui.lives} className="hud-icon-row-value">🐘🐘🐘🐘🐘</span>
+            </div>
+            <div className="hud-icon-row hud-panel-dark hud-next-life-row">
+              <span className="hud-icon-bubble" aria-hidden="true">✨</span>
+              <span className="hud-icon-row-label">Next</span>
+              <span ref={ui.fruit} className="hud-icon-row-value">0/100</span>
+              <span className="hud-fruit-life-track" aria-hidden="true">
+                <span ref={ui.fruitLife} className="hud-fruit-life-fill transition-all duration-150" />
+              </span>
+            </div>
           </div>
           <div ref={ui.sectionBadge} className="hud-section-pill rounded-full px-4 py-1 text-xs font-black uppercase tracking-[0.28em] text-emerald-200">
             Learning Trail
           </div>
-          <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
-            <Icon label="⏱" />
-            <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
-            <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
+          <div className="hud-right-cluster">
+            <div className="hud-control-row pointer-events-auto">
+              <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
+                <Icon label="⏱" />
+                <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
+                <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
+              </div>
+              <button
+                type="button"
+                className="hud-gold-frame-button"
+                onClick={() => setPausedState(true)}
+                aria-label="Pause game and open settings"
+                title="Pause / Settings"
+              >
+                ⚙
+              </button>
+            </div>
+            <div className="hud-score-stack" title="Score from fruit, crates, pineapples, and monkeys">
+              <span className="hud-score-label">Score</span>
+              <span className="hud-score-emphasis hud-gold-outline-text hud-gold-gradient-text" ref={ui.scoreTally}>0</span>
+            </div>
+            <div ref={ui.multiplierBadge}
+              className="hud-multiplier-badge hud-gold-outline-text hud-gold-gradient-text transition-all duration-200"
+              style={{ opacity: 0, transform: "scale(0.85)", color: "#ffd34a" }}>
+              1x COMBO
+            </div>
+            <div className="hud-crate-chip hud-panel-dark" title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></div>
           </div>
         </div>
       )}
 
-      {/* LEFT PANEL — stamina, lives, charge, state */}
+      {/* LEFT PANEL — stamina, charge, state */}
       {started && !complete && !gameOver && (
         <div className="hud-primary-panel pointer-events-none absolute left-3 top-12 z-20 w-52">
           <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
@@ -2433,12 +2954,6 @@ export default function App() {
           </div>
           <div className="h-3 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div ref={ui.health} className="h-full w-full rounded-full transition-all duration-150" />
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
-              <Icon label="💗" size={12} /> Herd
-            </span>
-            <span ref={ui.lives} className="text-sm leading-none">🐘🐘🐘🐘🐘</span>
           </div>
           <div className="my-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }} />
           <div className="mb-1 flex items-center justify-between">
@@ -2456,12 +2971,6 @@ export default function App() {
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.35)" }}>
               Ready
             </span>
-          </div>
-          {/* Multiplier badge */}
-          <div ref={ui.multiplierBadge}
-            className="mt-2 text-center text-[12px] font-black tracking-widest transition-all duration-200"
-            style={{ opacity: 0, transform: "scale(0.85)", color: "#ffd34a" }}>
-            1x COMBO
           </div>
           {/* Momentum label */}
           <div className="mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.5rem" }}>
@@ -2485,17 +2994,6 @@ export default function App() {
           </div>
           <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-amber-100/40">
             <Icon label="🎯" size={12} /> Gate at 760 m
-          </div>
-          <div className="mt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.75rem" }}>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-100/70">Next Life</span>
-              <span ref={ui.fruit} className="text-[10px] font-black text-yellow-100">0/100</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div ref={ui.fruitLife} className="h-full w-0 rounded-full transition-all duration-150"
-                style={{ background: "linear-gradient(90deg, #facc15, #84cc16)" }} />
-            </div>
-            <div className="mt-2 text-[9px] tracking-wider text-yellow-100/40">🍋 100 fruit = bonus elephant</div>
           </div>
         </div>
       )}

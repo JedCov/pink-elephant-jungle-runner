@@ -651,6 +651,7 @@ button:disabled {
 }
 
 .hud-action-button,
+.hud-circle-action-button,
 .hud-gold-frame-button {
   align-items: center;
   border-radius: 9999px;
@@ -662,6 +663,11 @@ button:disabled {
   justify-content: center;
   min-height: 2.5rem;
   min-width: 2.5rem;
+}
+
+.hud-circle-action-button {
+  border: 1px solid rgba(255, 239, 168, 0.34);
+  border-radius: 9999px;
 }
 
 .hud-gold-frame-button {
@@ -722,6 +728,14 @@ button:disabled {
   margin-left: auto;
   text-align: right;
   text-shadow: 0 2px 0 rgba(83, 42, 5, 0.58), 0 0 12px rgba(255, 211, 74, 0.32);
+}
+
+.hud-lives-value {
+  color: #ffd34a;
+  letter-spacing: -0.12em;
+  max-width: 6.4rem;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .hud-next-life-row {
@@ -938,6 +952,11 @@ button:disabled {
     width: 4.25rem;
   }
 
+  .hud-ability-status {
+    font-size: 0.46rem;
+    right: 0.18rem;
+  }
+
   .hud-prompt-layer {
     bottom: 0.85rem;
     width: min(94vw, 28rem);
@@ -1000,6 +1019,23 @@ button:disabled {
   justify-content: center;
   overflow: hidden;
   width: 5.15rem;
+}
+
+.hud-ability-status {
+  background: linear-gradient(180deg, rgba(255, 247, 184, 0.98), rgba(255, 159, 28, 0.94));
+  border: 1px solid rgba(83, 42, 5, 0.34);
+  border-radius: 9999px;
+  bottom: 0.38rem;
+  box-shadow: 0 3px 8px rgba(30, 12, 2, 0.28);
+  color: #532a05;
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: 0.22rem 0.38rem;
+  position: absolute;
+  right: 0.35rem;
+  text-transform: uppercase;
 }
 
 .hud-elephant-ability-badge::after {

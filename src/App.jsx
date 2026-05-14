@@ -24,7 +24,7 @@ import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { createPostProcessing } from "./game/rendering/postprocessing.js";
-import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
+import { makeFoamStreakTexture, makeGroundTexture, makePathTexture, makeWaterRippleTexture } from "./game/rendering/textures.js";
 import {
   createPlayerBody,
   selectPlayerStateLabel,
@@ -512,6 +512,11 @@ export default function App() {
       edgeStem: new THREE.CylinderGeometry(0.035, 0.045, 0.5, 5),
       edgeTorchPost: new THREE.CylinderGeometry(0.055, 0.075, 1.0, 6),
       edgeTorchFlame: new THREE.ConeGeometry(0.18, 0.42, 7),
+      broadBananaLeaf: new THREE.PlaneGeometry(0.9, 2.45, 1, 3),
+      hangingVine: new THREE.CylinderGeometry(0.022, 0.032, 1, 5),
+      mossClump: new THREE.DodecahedronGeometry(0.42, 0),
+      foregroundRock: new THREE.DodecahedronGeometry(1, 1),
+      ruinBlockCluster: new THREE.BoxGeometry(1, 1, 1),
       telegraphArrow: new THREE.ConeGeometry(0.38, 0.82, 3),
     };
     const sharedTreeGeometries = {
@@ -551,14 +556,88 @@ export default function App() {
       particlePool.push({ mesh, active: false, life: 0, startLife: 1, vx: 0, vy: 0, vz: 0 });
     }
 
-    const riverMat = new THREE.MeshStandardMaterial({ color: "#237cb4", roughness: 0.35, metalness: 0.08, transparent: true, opacity: 0.82, emissive: "#0a3352", emissiveIntensity: 0.25 });
-    LEVEL.rivers.forEach((river) => {
+    const waterRippleTexture = makeWaterRippleTexture();
+    const foamStreakTexture = makeFoamStreakTexture();
+    const riverMat = new THREE.MeshStandardMaterial({
+      color: "#5fc9ff",
+      map: waterRippleTexture,
+      roughness: 0.28,
+      metalness: 0.04,
+      transparent: true,
+      opacity: 0.88,
+      emissive: "#0b4d78",
+      emissiveIntensity: 0.34,
+    });
+    const foamMat = new THREE.MeshBasicMaterial({
+      color: "#f3fdff",
+      map: foamStreakTexture,
+      transparent: true,
+      opacity: 0.54,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const waterfallMat = new THREE.MeshBasicMaterial({
+      color: "#8ee8ff",
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const waterfallMistMat = new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    LEVEL.rivers.forEach((river, riverIndex) => {
       const cx = trackCenter(river.z);
+      const riverGroup = new THREE.Group();
+      riverGroup.position.set(cx, 0, river.z);
+      riverGroup.rotation.y = trackAngle(river.z);
+      scene.add(riverGroup);
+
       const water = new THREE.Mesh(new THREE.BoxGeometry(river.width, 0.12, river.depth), riverMat);
-      water.position.set(cx, 0.08, river.z);
-      water.rotation.y = trackAngle(river.z);
+      water.position.y = 0.08;
       water.receiveShadow = true;
-      scene.add(water);
+      riverGroup.add(water);
+
+      [-1, 1].forEach((edgeSide) => {
+        const edgeFoam = new THREE.Mesh(new THREE.PlaneGeometry(river.width * 0.96, 0.46), foamMat);
+        edgeFoam.rotation.x = -Math.PI / 2;
+        edgeFoam.position.set(0, 0.165, edgeSide * (river.depth / 2 - 0.2));
+        edgeFoam.renderOrder = 2;
+        riverGroup.add(edgeFoam);
+      });
+
+      river.crocs.forEach((croc) => {
+        const wake = new THREE.Mesh(new THREE.PlaneGeometry(0.72, river.depth * 0.82), foamMat);
+        wake.rotation.x = -Math.PI / 2;
+        wake.position.set(croc.localX, 0.18, 0);
+        wake.renderOrder = 2;
+        riverGroup.add(wake);
+      });
+
+      if (riverIndex % 2 === 0) {
+        const side = riverIndex % 4 === 0 ? -1 : 1;
+        const falls = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * 0.72, 1.65), waterfallMat);
+        falls.rotation.y = Math.PI / 2;
+        falls.position.set(side * (river.width / 2 + 0.18), 0.62, -river.depth * 0.04);
+        riverGroup.add(falls);
+
+        const mist = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * 0.58, 0.34), waterfallMistMat);
+        mist.rotation.x = -Math.PI / 2;
+        mist.position.set(side * (river.width / 2 + 0.22), 0.13, -river.depth * 0.04);
+        riverGroup.add(mist);
+
+        for (let step = 0; step < 3; step += 1) {
+          const drop = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * (0.42 - step * 0.06), 0.2), waterfallMistMat);
+          drop.rotation.x = -Math.PI / 2;
+          drop.position.set(side * (river.width / 2 + 0.34 + step * 0.28), 0.12 + step * 0.16, -river.depth * 0.05);
+          riverGroup.add(drop);
+        }
+      }
+
       river.crocs.forEach((croc) => {
         const group = new THREE.Group();
         const crocMat = makeMaterial("#315b2c");
@@ -595,6 +674,21 @@ export default function App() {
     const edgeTorchPostMat = makeMaterial("#4a2b16", { roughness: 0.86 });
     const edgeTorchFlameMat = new THREE.MeshStandardMaterial({ color: "#ffcf58", roughness: 0.35, emissive: "#ff8c1a", emissiveIntensity: 1.45 });
     const edgeLipHighlightMat = makeMaterial("#ffc66d", { roughness: 0.82, emissive: "#4f2500", emissiveIntensity: 0.18 });
+    const depthEdgeLeafMat = new THREE.MeshStandardMaterial({ color: "#4bea70", roughness: 0.74, emissive: "#bfff6d", emissiveIntensity: 0.22, side: THREE.DoubleSide });
+    const depthEdgeVineMat = makeMaterial("#47d667", { roughness: 0.88, emissive: "#cffc7a", emissiveIntensity: 0.14 });
+    const depthEdgeMossMat = makeMaterial("#72f052", { roughness: 0.96, emissive: "#efff9a", emissiveIntensity: 0.1 });
+    const depthEdgeRockMat = makeMaterial("#9f986f", { roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
+    const depthEdgeRuinMat = makeMaterial("#8f936c", { roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
+    const depthMidLeafMat = new THREE.MeshStandardMaterial({ color: "#1f7b42", roughness: 0.9, side: THREE.DoubleSide });
+    const depthMidVineMat = makeMaterial("#23683b", { roughness: 0.96 });
+    const depthMidMossMat = makeMaterial("#3f7f35", { roughness: 1 });
+    const depthMidRockMat = makeMaterial("#696b58", { roughness: 1 });
+    const depthMidRuinMat = makeMaterial("#5d6651", { roughness: 0.98 });
+    const depthFarLeafMat = new THREE.MeshStandardMaterial({ color: "#18351f", roughness: 1, side: THREE.DoubleSide });
+    const depthFarVineMat = makeMaterial("#142b1c", { roughness: 1 });
+    const depthFarMossMat = makeMaterial("#223a21", { roughness: 1 });
+    const depthFarRockMat = makeMaterial("#343a31", { roughness: 1 });
+    const depthFarRuinMat = makeMaterial("#30372f", { roughness: 1 });
 
     function trackCurvatureCue(z) {
       return Math.abs(trackAngle(z - 18) - trackAngle(z + 18));
@@ -631,6 +725,171 @@ export default function App() {
       flame.castShadow = true;
       torch.add(post, flame);
       return torch;
+    }
+
+    function makeBananaLeafCluster(rng, material, count = 5) {
+      const cluster = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const leaf = new THREE.Mesh(sharedGeometries.broadBananaLeaf, material);
+        leaf.position.set((rng() - 0.5) * 1.45, 1.05 + rng() * 0.75, (rng() - 0.5) * 0.56);
+        leaf.rotation.set(-0.55 - rng() * 0.28, rng() * Math.PI * 2, (rng() - 0.5) * 0.62);
+        leaf.scale.set(0.82 + rng() * 0.55, 0.92 + rng() * 0.7, 1);
+        leaf.castShadow = true;
+        cluster.add(leaf);
+      }
+      return cluster;
+    }
+
+    function makeHangingVineCurtain(rng, vineMaterial, leafMaterial, vineCount = 5) {
+      const curtain = new THREE.Group();
+      for (let i = 0; i < vineCount; i += 1) {
+        const length = 1.65 + rng() * 2.45;
+        const vine = new THREE.Mesh(sharedGeometries.hangingVine, vineMaterial);
+        vine.position.set((i - (vineCount - 1) / 2) * (0.28 + rng() * 0.1), 1.9 - length * 0.5 + rng() * 0.38, (rng() - 0.5) * 0.32);
+        vine.scale.set(0.7 + rng() * 0.65, length, 0.7 + rng() * 0.65);
+        vine.rotation.z = (rng() - 0.5) * 0.18;
+        vine.castShadow = true;
+        curtain.add(vine);
+        if (rng() < 0.45) {
+          const leaf = new THREE.Mesh(sharedGeometries.broadBananaLeaf, leafMaterial);
+          leaf.position.set(vine.position.x + (rng() - 0.5) * 0.32, vine.position.y - length * 0.24, vine.position.z + 0.05);
+          leaf.rotation.set(-0.35, rng() * Math.PI * 2, (rng() - 0.5) * 0.72);
+          leaf.scale.set(0.32 + rng() * 0.22, 0.38 + rng() * 0.28, 1);
+          leaf.castShadow = true;
+          curtain.add(leaf);
+        }
+      }
+      return curtain;
+    }
+
+    function makeMossPatch(rng, material, count = 7) {
+      const patch = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const moss = new THREE.Mesh(sharedGeometries.mossClump, material);
+        const scale = 0.45 + rng() * 0.8;
+        moss.position.set((rng() - 0.5) * 1.8, 0.08 + rng() * 0.12, (rng() - 0.5) * 1.4);
+        moss.scale.set(scale * (1.2 + rng() * 0.6), scale * 0.28, scale * (0.8 + rng() * 0.45));
+        moss.rotation.y = rng() * Math.PI;
+        moss.receiveShadow = true;
+        patch.add(moss);
+      }
+      return patch;
+    }
+
+    function makeLargeRockPile(rng, rockMaterial, mossMaterial, count = 3) {
+      const pile = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const rock = new THREE.Mesh(sharedGeometries.foregroundRock, rockMaterial);
+        const scale = 0.8 + rng() * 1.2;
+        rock.position.set((rng() - 0.5) * 1.7, scale * 0.28, (rng() - 0.5) * 1.2);
+        rock.scale.set(scale * (1.0 + rng() * 0.6), scale * (0.42 + rng() * 0.25), scale * (0.7 + rng() * 0.5));
+        rock.rotation.set((rng() - 0.5) * 0.28, rng() * Math.PI, (rng() - 0.5) * 0.22);
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        pile.add(rock);
+      }
+      const moss = makeMossPatch(rng, mossMaterial, 3 + Math.floor(rng() * 4));
+      moss.position.y = 0.46;
+      pile.add(moss);
+      return pile;
+    }
+
+    function makeRuinBlockCluster(rng, blockMaterial, mossMaterial, blockCount = 4) {
+      const ruin = new THREE.Group();
+      for (let i = 0; i < blockCount; i += 1) {
+        const block = new THREE.Mesh(sharedGeometries.ruinBlockCluster, blockMaterial);
+        const width = 0.65 + rng() * 0.8;
+        const height = 0.42 + rng() * 1.0;
+        block.position.set((rng() - 0.5) * 2.0, height * 0.5 - 0.02, (rng() - 0.5) * 1.25);
+        block.scale.set(width, height, 0.55 + rng() * 0.72);
+        block.rotation.y = (rng() - 0.5) * 0.36;
+        block.castShadow = true;
+        block.receiveShadow = true;
+        ruin.add(block);
+      }
+      const moss = makeMossPatch(rng, mossMaterial, 4 + Math.floor(rng() * 3));
+      moss.position.set(0, 0.18, 0);
+      ruin.add(moss);
+      return ruin;
+    }
+
+    function addJungleDepthProps() {
+      const depthRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
+      const bands = [
+        {
+          step: 14,
+          zOffset: 1.8,
+          chance: 0.86,
+          minX: safeHalfWidth + 1.65,
+          maxX: safeHalfWidth + 4.15,
+          scale: [1.05, 1.45],
+          group: edgePropGroup,
+          leafMat: depthEdgeLeafMat,
+          vineMat: depthEdgeVineMat,
+          mossMat: depthEdgeMossMat,
+          rockMat: depthEdgeRockMat,
+          ruinMat: depthEdgeRuinMat,
+        },
+        {
+          step: 20,
+          zOffset: -2.6,
+          chance: 0.72,
+          minX: 9.2,
+          maxX: 15.8,
+          scale: [1.55, 2.35],
+          group: treeGroup,
+          leafMat: depthMidLeafMat,
+          vineMat: depthMidVineMat,
+          mossMat: depthMidMossMat,
+          rockMat: depthMidRockMat,
+          ruinMat: depthMidRuinMat,
+        },
+        {
+          step: 28,
+          zOffset: -7.2,
+          chance: 0.62,
+          minX: 18.0,
+          maxX: 30.0,
+          scale: [2.45, 3.8],
+          group: treeGroup,
+          leafMat: depthFarLeafMat,
+          vineMat: depthFarVineMat,
+          mossMat: depthFarMossMat,
+          rockMat: depthFarRockMat,
+          ruinMat: depthFarRuinMat,
+        },
+      ];
+
+      bands.forEach((band, bandIndex) => {
+        for (let z = 8 - bandIndex * 4; z > -812; z -= band.step) {
+          [-1, 1].forEach((side) => {
+            if (depthRng() > band.chance) return;
+            const propZ = z + band.zOffset + (depthRng() - 0.5) * band.step * 0.56;
+            const localX = side * (band.minX + depthRng() * (band.maxX - band.minX));
+            const pos = worldPosition(localX, propZ);
+            let prop;
+            const roll = depthRng();
+            if (roll < 0.26) {
+              prop = makeBananaLeafCluster(depthRng, band.leafMat, 4 + Math.floor(depthRng() * 4));
+            } else if (roll < 0.48) {
+              prop = makeHangingVineCurtain(depthRng, band.vineMat, band.leafMat, 4 + Math.floor(depthRng() * 4));
+              prop.position.y = 0.8 + bandIndex * 0.65;
+            } else if (roll < 0.66) {
+              prop = makeLargeRockPile(depthRng, band.rockMat, band.mossMat, 2 + Math.floor(depthRng() * 4));
+            } else if (roll < 0.84) {
+              prop = makeRuinBlockCluster(depthRng, band.ruinMat, band.mossMat, 3 + Math.floor(depthRng() * 4));
+            } else {
+              prop = makeMossPatch(depthRng, band.mossMat, 5 + Math.floor(depthRng() * 6));
+            }
+            const scale = band.scale[0] + depthRng() * (band.scale[1] - band.scale[0]);
+            prop.scale.multiplyScalar(scale);
+            prop.position.x += pos.x;
+            prop.position.z += pos.z;
+            prop.rotation.y = trackAngle(propZ) + (side < 0 ? -0.28 : 0.28) + (depthRng() - 0.5) * 0.54;
+            band.group.add(prop);
+          });
+        }
+      });
     }
 
     function addEdgeGuidanceProps() {
@@ -695,6 +954,7 @@ export default function App() {
     }
 
     addEdgeGuidanceProps();
+    addJungleDepthProps();
 
     for (let z = 16; z > -824; z -= 8) {
       [-1, 1].forEach((side) => {
@@ -1115,6 +1375,23 @@ export default function App() {
     belly.scale.set(1.08, 0.34, 1.1);
     belly.castShadow = true;
     bodyMesh.add(backHighlight, belly);
+    const pink = makeMaterial("#ff69c2", { roughness: 0.54, emissive: "#4a0628", emissiveIntensity: 0.09 });
+    const bellyPink = makeMaterial("#d94a9a", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.045 });
+    const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
+    const innerEar = makeMaterial("#ff9fdb", { roughness: 0.78 });
+    const innerEarGlow = makeMaterial("#ffd1f0", { roughness: 0.68, emissive: "#2f061d", emissiveIntensity: 0.035 });
+    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
+
+    const bodyGeo = new THREE.DodecahedronGeometry(1, 1);
+    bodyGeo.scale(1.12, 1.04, 1.42);
+    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
+    bodyMesh.position.y = 1.08; bodyMesh.castShadow = true;
+    const bellyGeo = new THREE.SphereGeometry(0.74, 10, 8);
+    bellyGeo.scale(1.18, 0.62, 0.76);
+    const belly = new THREE.Mesh(bellyGeo, bellyPink);
+    belly.position.set(0, -0.2, -0.6);
+    belly.castShadow = true;
+    bodyMesh.add(belly);
     player.add(bodyMesh);
 
     [-1, 1].forEach((side) => {
@@ -1125,6 +1402,9 @@ export default function App() {
       const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 7), pink);
       haunch.position.set(side * 0.76, 0.98, 0.96);
       haunch.scale.set(0.78, 0.88, 0.9);
+      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), bellyPink);
+      haunch.position.set(side * 1.02, 1.02, 1.05);
+      haunch.scale.set(0.82, 0.95, 0.9);
       haunch.castShadow = true;
       player.add(shoulder, haunch);
     });
@@ -1132,6 +1412,7 @@ export default function App() {
     const legCoreGeo = new THREE.CapsuleGeometry(0.2, 0.48, 3, 7);
     const pawGeo = new THREE.SphereGeometry(0.26, 8, 6);
     const toeGeo = new THREE.SphereGeometry(0.055, 6, 4);
+    const legGeo = new THREE.CapsuleGeometry(0.24, 0.52, 3, 8);
     const legAnchors = [
       [-0.66, 0.34, -0.82, 0],
       [0.66, 0.34, -0.82, Math.PI],
@@ -1157,6 +1438,7 @@ export default function App() {
         leg.add(toe);
       });
       leg.add(legCore, paw);
+      const leg = new THREE.Mesh(legGeo, legPink);
       leg.position.set(x, y, z);
       player.add(leg);
       return { mesh: leg, baseX: x, baseY: y, baseZ: z, phase };
@@ -1172,6 +1454,13 @@ export default function App() {
     tailTip.position.set(-0.22, -0.34, 0.9);
     tailTip.scale.set(1.35, 0.62, 0.82);
     tailTip.rotation.z = -0.55;
+    tail.position.set(0, 1.28, 1.54);
+    const tailMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.56, 3, 7), pink);
+    tailMesh.position.z = 0.32;
+    tailMesh.rotation.x = Math.PI / 2;
+    tailMesh.castShadow = true;
+    const tailTip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), innerEarGlow);
+    tailTip.position.z = 0.72;
     tailTip.castShadow = true;
     tail.add(tailTip);
     player.add(tail);
@@ -1242,6 +1531,54 @@ export default function App() {
     const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
     trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
     trunkHighlight.scale.set(1.3, 0.78, 0.9);
+    const headGeo = new THREE.SphereGeometry(0.82, 12, 9);
+    headGeo.scale(0.95, 0.9, 0.9);
+    const headMesh = new THREE.Mesh(headGeo, pink);
+    headMesh.castShadow = true;
+    head.add(headMesh);
+
+    const earGeo = new THREE.SphereGeometry(0.72, 12, 8);
+    earGeo.scale(0.92, 1.16, 0.16);
+    const innerEarGeo = new THREE.SphereGeometry(0.52, 10, 7);
+    innerEarGeo.scale(0.84, 1.08, 0.11);
+    const innerEarGlowGeo = new THREE.SphereGeometry(0.34, 8, 6);
+    innerEarGlowGeo.scale(0.76, 0.98, 0.08);
+    const earL = new THREE.Mesh(earGeo, pink);
+    const earR = new THREE.Mesh(earGeo, pink);
+    earL.position.set(-1.08, -0.02, 0.12); earR.position.set(1.08, -0.02, 0.12);
+    earL.rotation.y = -0.34; earR.rotation.y = 0.34;
+    earL.castShadow = true; earR.castShadow = true;
+    const inL = new THREE.Group();
+    const inR = new THREE.Group();
+    const innerL = new THREE.Mesh(innerEarGeo, innerEar);
+    const innerR = innerL.clone();
+    innerL.position.z = -0.035; innerR.position.z = -0.035;
+    const innerGlowL = new THREE.Mesh(innerEarGlowGeo, innerEarGlow);
+    const innerGlowR = innerGlowL.clone();
+    innerGlowL.position.set(0, 0.1, -0.06); innerGlowR.position.copy(innerGlowL.position);
+    inL.add(innerL, innerGlowL); inR.add(innerR, innerGlowR);
+    inL.position.copy(earL.position); inR.position.copy(earR.position);
+    inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
+    head.add(earL, earR, inL, inR);
+
+    const trunk = new THREE.Group();
+    trunk.position.set(0, -0.12, -0.74);
+    const trunkSegments = [
+      { y: -0.24, z: -0.08, length: 0.5, top: 0.3, bottom: 0.27, rx: -0.1 },
+      { y: -0.68, z: -0.18, length: 0.52, top: 0.27, bottom: 0.23, rx: -0.24 },
+      { y: -1.08, z: -0.35, length: 0.48, top: 0.23, bottom: 0.19, rx: -0.38 },
+      { y: -1.4, z: -0.58, length: 0.42, top: 0.19, bottom: 0.16, rx: -0.58 },
+    ];
+    trunkSegments.forEach(({ y, z, length, top, bottom, rx }, index) => {
+      const segment = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, length, 8, 1), index < 2 ? pink : bellyPink);
+      segment.position.set(0, y, z);
+      segment.rotation.x = rx;
+      segment.castShadow = true;
+      trunk.add(segment);
+    });
+    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), innerEarGlow);
+    trunkHighlight.position.set(0, -1.6, -0.7);
+    trunkHighlight.scale.set(1.25, 0.7, 0.82);
     trunkHighlight.castShadow = true;
     trunk.add(trunkHighlight);
     head.add(trunk);
@@ -1250,6 +1587,10 @@ export default function App() {
     eyeL.position.set(-0.24, 0.16, -0.5);
     eyeL.scale.set(0.78, 1.08, 0.62);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.24;
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), dark);
+    eyeL.position.set(-0.38, 0.23, -0.76);
+    eyeL.scale.set(0.82, 1.08, 0.7);
+    const eyeR = eyeL.clone(); eyeR.position.x = 0.38;
     head.add(eyeL, eyeR);
 
     const tuskGeo = new THREE.CylinderGeometry(0.035, 0.075, 0.46, 5);
@@ -1797,6 +2138,8 @@ export default function App() {
 
     function updateMeshes(dt, now) {
       const t = now * 0.001;
+      waterRippleTexture.offset.set((t * 0.045) % 1, (t * 0.16) % 1);
+      foamStreakTexture.offset.set((t * -0.08) % 1, (t * 0.24) % 1);
       updateCrocs(now);
       const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const sliding = body.slideTimer > 0;
@@ -1836,6 +2179,7 @@ export default function App() {
       topPink.color.set(hurtFlash ? "#ffffff" : "#ff78ca");
       bellyPink.color.set(hurtFlash ? "#ffffff" : "#d83f91");
       footPink.color.set(hurtFlash ? "#ffffff" : "#b72874");
+      pink.color.set(hurtState && Math.floor(t * 14) % 2 === 0 ? "#ffffff" : "#ff69c2");
 
       shadow.position.set(body.x, 0.025, body.z);
       const air = clamp((body.y - CONFIG.playerSize / 2) / 5, 0, 1);

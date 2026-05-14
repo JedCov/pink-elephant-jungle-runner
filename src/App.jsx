@@ -81,7 +81,7 @@ function AudioControls({ audioState, onToggle, compact = false }) {
   const musicMuted = audioState.muted || audioState.musicMuted;
   const sfxMuted = audioState.muted || audioState.sfxMuted;
   const buttonBase = compact
-    ? "pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    ? "hud-action-button pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
     : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
   const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
   const stopGestureStart = (event) => {
@@ -1422,6 +1422,38 @@ export default function App() {
 
     const player = new THREE.Group();
     scene.add(player);
+    const pink = makeMaterial("#ff4fb3", { roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.08 });
+    const topPink = makeMaterial("#ff78ca", { roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.06 });
+    const bellyPink = makeMaterial("#d83f91", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.04 });
+    const footPink = makeMaterial("#b72874", { roughness: 0.82, emissive: "#1e0210", emissiveIntensity: 0.035 });
+    const innerEar = makeMaterial("#ff93d4", { roughness: 0.76 });
+    const innerEarGlow = makeMaterial("#ffd0ee", { roughness: 0.66, emissive: "#2f061d", emissiveIntensity: 0.03 });
+    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
+
+    const makeSegmentBetween = (from, to, topRadius, bottomRadius, material, radialSegments = 8) => {
+      const direction = new THREE.Vector3().subVectors(to, from);
+      const segment = new THREE.Mesh(new THREE.CylinderGeometry(topRadius, bottomRadius, direction.length(), radialSegments, 1), material);
+      segment.position.copy(from).addScaledVector(direction, 0.5);
+      segment.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+      segment.castShadow = true;
+      return segment;
+    };
+
+    const bodyGeo = new THREE.CapsuleGeometry(0.7, 1.65, 4, 10);
+    bodyGeo.rotateX(Math.PI / 2);
+    bodyGeo.scale(1.04, 0.82, 1.02);
+    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
+    bodyMesh.position.y = 1.08;
+    bodyMesh.castShadow = true;
+    const backHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.66, 10, 7), topPink);
+    backHighlight.position.set(0, 0.25, 0.1);
+    backHighlight.scale.set(0.92, 0.38, 1.62);
+    backHighlight.castShadow = true;
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 7), bellyPink);
+    belly.position.set(0, -0.42, -0.18);
+    belly.scale.set(1.08, 0.34, 1.1);
+    belly.castShadow = true;
+    bodyMesh.add(backHighlight, belly);
     const pink = makeMaterial("#ff69c2", { roughness: 0.54, emissive: "#4a0628", emissiveIntensity: 0.09 });
     const bellyPink = makeMaterial("#d94a9a", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.045 });
     const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
@@ -1442,10 +1474,13 @@ export default function App() {
     player.add(bodyMesh);
 
     [-1, 1].forEach((side) => {
-      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.72, 12, 8), pink);
-      shoulder.position.set(side * 1.05, 1.12, -0.92);
-      shoulder.scale.set(0.74, 1.02, 0.82);
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.48, 10, 7), topPink);
+      shoulder.position.set(side * 0.82, 1.18, -0.84);
+      shoulder.scale.set(0.76, 0.96, 0.86);
       shoulder.castShadow = true;
+      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 7), pink);
+      haunch.position.set(side * 0.76, 0.98, 0.96);
+      haunch.scale.set(0.78, 0.88, 0.9);
       const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), bellyPink);
       haunch.position.set(side * 1.02, 1.02, 1.05);
       haunch.scale.set(0.82, 0.95, 0.9);
@@ -1453,22 +1488,51 @@ export default function App() {
       player.add(shoulder, haunch);
     });
 
+    const legCoreGeo = new THREE.CapsuleGeometry(0.2, 0.48, 3, 7);
+    const pawGeo = new THREE.SphereGeometry(0.26, 8, 6);
+    const toeGeo = new THREE.SphereGeometry(0.055, 6, 4);
     const legGeo = new THREE.CapsuleGeometry(0.24, 0.52, 3, 8);
     const legAnchors = [
-      [-0.86, 0.38, -0.86, 0],
-      [0.86, 0.38, -0.86, Math.PI],
-      [-0.86, 0.38, 1.04, Math.PI],
-      [0.86, 0.38, 1.04, 0],
+      [-0.66, 0.34, -0.82, 0],
+      [0.66, 0.34, -0.82, Math.PI],
+      [-0.66, 0.34, 1.02, Math.PI],
+      [0.66, 0.34, 1.02, 0],
     ];
     const legs = legAnchors.map(([x, y, z, phase]) => {
+      const leg = new THREE.Group();
+      const legCore = new THREE.Mesh(legCoreGeo, z > 0 ? bellyPink : pink);
+      legCore.position.y = 0.1;
+      legCore.scale.set(0.9, 1.08, 0.9);
+      legCore.castShadow = true;
+      const paw = new THREE.Mesh(pawGeo, footPink);
+      paw.position.set(0, -0.34, z > 0 ? 0.08 : -0.04);
+      paw.scale.set(0.92, 0.42, 1.12);
+      paw.castShadow = true;
+      const toeOffsetZ = z > 0 ? 0.26 : -0.22;
+      [-0.11, 0, 0.11].forEach((toeX) => {
+        const toe = new THREE.Mesh(toeGeo, innerEarGlow);
+        toe.position.set(toeX, -0.36, toeOffsetZ);
+        toe.scale.set(1, 0.62, 0.8);
+        toe.castShadow = true;
+        leg.add(toe);
+      });
+      leg.add(legCore, paw);
       const leg = new THREE.Mesh(legGeo, legPink);
       leg.position.set(x, y, z);
-      leg.castShadow = true;
       player.add(leg);
       return { mesh: leg, baseX: x, baseY: y, baseZ: z, phase };
     });
 
     const tail = new THREE.Group();
+    tail.position.set(0, 1.14, 1.58);
+    tail.add(
+      makeSegmentBetween(new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(-0.05, -0.18, 0.42), 0.105, 0.08, pink, 7),
+      makeSegmentBetween(new THREE.Vector3(-0.05, -0.18, 0.4), new THREE.Vector3(-0.18, -0.32, 0.78), 0.08, 0.055, pink, 7),
+    );
+    const tailTip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), innerEarGlow);
+    tailTip.position.set(-0.22, -0.34, 0.9);
+    tailTip.scale.set(1.35, 0.62, 0.82);
+    tailTip.rotation.z = -0.55;
     tail.position.set(0, 1.28, 1.54);
     const tailMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.56, 3, 7), pink);
     tailMesh.position.z = 0.32;
@@ -1477,12 +1541,75 @@ export default function App() {
     const tailTip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), innerEarGlow);
     tailTip.position.z = 0.72;
     tailTip.castShadow = true;
-    tail.add(tailMesh, tailTip);
+    tail.add(tailTip);
     player.add(tail);
 
     const head = new THREE.Group();
-    head.position.set(0, 1.88, -1.65);
+    head.position.set(0, 1.84, -1.34);
     player.add(head);
+    const headGeo = new THREE.SphereGeometry(0.58, 10, 8);
+    headGeo.scale(0.86, 0.92, 1.02);
+    const headMesh = new THREE.Mesh(headGeo, topPink);
+    headMesh.castShadow = true;
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.36, 8, 6), pink);
+    cheek.position.set(0, -0.22, -0.32);
+    cheek.scale.set(1.18, 0.72, 0.8);
+    cheek.castShadow = true;
+    head.add(headMesh, cheek);
+
+    const earGeo = new THREE.SphereGeometry(0.6, 10, 7);
+    earGeo.scale(0.68, 1.2, 0.14);
+    const earTipGeo = new THREE.SphereGeometry(0.42, 8, 6);
+    earTipGeo.scale(0.78, 0.72, 0.12);
+    const innerEarGeo = new THREE.SphereGeometry(0.42, 8, 6);
+    innerEarGeo.scale(0.62, 1.0, 0.08);
+    const innerEarGlowGeo = new THREE.SphereGeometry(0.24, 7, 5);
+    innerEarGlowGeo.scale(0.6, 0.78, 0.06);
+    const createEar = (side) => {
+      const ear = new THREE.Group();
+      const upperEar = new THREE.Mesh(earGeo, pink);
+      const lowerEar = new THREE.Mesh(earTipGeo, pink);
+      lowerEar.position.set(side * 0.05, -0.5, 0.02);
+      lowerEar.rotation.z = side * 0.16;
+      upperEar.castShadow = true; lowerEar.castShadow = true;
+      ear.add(upperEar, lowerEar);
+      ear.position.set(side * 0.72, -0.02, 0.12);
+      ear.rotation.set(0.04, side * 0.34, side * -0.12);
+      return ear;
+    };
+    const createInnerEar = (side) => {
+      const ear = new THREE.Group();
+      const inner = new THREE.Mesh(innerEarGeo, innerEar);
+      const glow = new THREE.Mesh(innerEarGlowGeo, innerEarGlow);
+      glow.position.set(side * 0.02, 0.08, -0.045);
+      inner.position.z = -0.035;
+      ear.add(inner, glow);
+      ear.position.set(side * 0.72, -0.04, 0.1);
+      ear.rotation.set(0.04, side * 0.34, side * -0.12);
+      return ear;
+    };
+    const earL = createEar(-1);
+    const earR = createEar(1);
+    const inL = createInnerEar(-1);
+    const inR = createInnerEar(1);
+    head.add(earL, earR, inL, inR);
+
+    const trunk = new THREE.Group();
+    trunk.position.set(0, -0.08, -0.5);
+    const trunkPoints = [
+      new THREE.Vector3(0, -0.02, -0.02),
+      new THREE.Vector3(0, -0.24, -0.2),
+      new THREE.Vector3(0, -0.38, -0.42),
+      new THREE.Vector3(0, -0.3, -0.62),
+      new THREE.Vector3(0, -0.12, -0.72),
+    ];
+    const trunkRadii = [0.21, 0.18, 0.15, 0.12, 0.09];
+    for (let i = 0; i < trunkPoints.length - 1; i++) {
+      trunk.add(makeSegmentBetween(trunkPoints[i], trunkPoints[i + 1], trunkRadii[i], trunkRadii[i + 1], i < 2 ? pink : bellyPink, 8));
+    }
+    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
+    trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
+    trunkHighlight.scale.set(1.3, 0.78, 0.9);
     const headGeo = new THREE.SphereGeometry(0.82, 12, 9);
     headGeo.scale(0.95, 0.9, 0.9);
     const headMesh = new THREE.Mesh(headGeo, pink);
@@ -1535,17 +1662,21 @@ export default function App() {
     trunk.add(trunkHighlight);
     head.add(trunk);
 
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), dark);
+    eyeL.position.set(-0.24, 0.16, -0.5);
+    eyeL.scale.set(0.78, 1.08, 0.62);
+    const eyeR = eyeL.clone(); eyeR.position.x = 0.24;
     const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), dark);
     eyeL.position.set(-0.38, 0.23, -0.76);
     eyeL.scale.set(0.82, 1.08, 0.7);
     const eyeR = eyeL.clone(); eyeR.position.x = 0.38;
     head.add(eyeL, eyeR);
 
-    const tuskGeo = new THREE.CylinderGeometry(0.055, 0.11, 0.78, 5);
+    const tuskGeo = new THREE.CylinderGeometry(0.035, 0.075, 0.46, 5);
     const tuskL = new THREE.Mesh(tuskGeo, innerEar);
     const tuskR = tuskL.clone();
-    tuskL.position.set(-0.34, -0.42, -0.82);
-    tuskR.position.set(0.34, -0.42, -0.82);
+    tuskL.position.set(-0.22, -0.28, -0.54);
+    tuskR.position.set(0.22, -0.28, -0.54);
     tuskL.rotation.x = tuskR.rotation.x = Math.PI / 2;
     tuskL.rotation.z = 0.18; tuskR.rotation.z = -0.18;
     tuskL.castShadow = true; tuskR.castShadow = true;
@@ -2122,6 +2253,11 @@ export default function App() {
       earL.rotation.y = -0.34 + Math.sin(t * 8 + body.speed * 0.35) * (0.1 + charge * 0.15);
       earR.rotation.y = 0.34 - Math.sin(t * 8 + body.speed * 0.35) * (0.1 + charge * 0.15);
       inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
+      const hurtFlash = hurtState && Math.floor(t * 14) % 2 === 0;
+      pink.color.set(hurtFlash ? "#ffffff" : "#ff4fb3");
+      topPink.color.set(hurtFlash ? "#ffffff" : "#ff78ca");
+      bellyPink.color.set(hurtFlash ? "#ffffff" : "#d83f91");
+      footPink.color.set(hurtFlash ? "#ffffff" : "#b72874");
       pink.color.set(hurtState && Math.floor(t * 14) % 2 === 0 ? "#ffffff" : "#ff69c2");
 
       shadow.position.set(body.x, 0.025, body.z);
@@ -2688,31 +2824,85 @@ export default function App() {
 
       {/* TOP STRIP — tally, section, timer */}
       {started && !complete && !gameOver && (
-        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 right-4 z-20">
+        <div className="hud-audio-dock pointer-events-auto absolute bottom-4 left-3 z-20">
           <AudioControls audioState={audioState} onToggle={toggleAudioState} compact />
         </div>
       )}
       {started && !complete && !gameOver && (
-        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-2">
-          <div className="hud-tally-cluster flex items-center gap-3 text-xs font-black tracking-widest text-amber-100/80">
-            <span>🍋 <span ref={ui.fruitTally}>0</span></span>
-            <span className="text-amber-100/30">·</span>
-            <span title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></span>
-            <span className="text-amber-100/30">·</span>
-            <span className="hud-score-emphasis" title="Score from fruit, crates, pineapples, and monkeys">⭐ <span ref={ui.scoreTally}>0</span></span>
+        <div className="hud-elephant-ability-badge pointer-events-none absolute bottom-4 right-4 z-20"
+          aria-label="Elephant charge ability status" role="img">
+          <span className="title-elephant-mascot hud-ability-mascot" aria-hidden="true">
+            <span className="title-elephant-sunburst" />
+            <span className="title-elephant-shadow" />
+            <span className="title-elephant-tail" />
+            <span className="title-elephant-ear" />
+            <span className="title-elephant-body" />
+            <span className="title-elephant-head" />
+            <span className="title-elephant-trunk" />
+            <span className="title-elephant-tusk" />
+            <span className="title-elephant-leg title-elephant-leg-back" />
+            <span className="title-elephant-leg title-elephant-leg-front" />
+            <span className="title-elephant-crown" />
+          </span>
+        </div>
+      )}
+      {started && !complete && !gameOver && (
+        <div className="hud-top-strip pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-start justify-between px-4 py-2">
+          <div className="hud-counter-stack flex flex-col gap-2">
+            <div className="hud-icon-row hud-panel-dark">
+              <span className="hud-icon-bubble" aria-hidden="true">🍋</span>
+              <span className="hud-icon-row-label">Fruit</span>
+              <span ref={ui.fruitTally} className="hud-icon-row-value">0</span>
+            </div>
+            <div className="hud-icon-row hud-panel-dark">
+              <span className="hud-icon-bubble" aria-hidden="true">🐘</span>
+              <span className="hud-icon-row-label">Herd</span>
+              <span ref={ui.lives} className="hud-icon-row-value">🐘🐘🐘🐘🐘</span>
+            </div>
+            <div className="hud-icon-row hud-panel-dark hud-next-life-row">
+              <span className="hud-icon-bubble" aria-hidden="true">✨</span>
+              <span className="hud-icon-row-label">Next</span>
+              <span ref={ui.fruit} className="hud-icon-row-value">0/100</span>
+              <span className="hud-fruit-life-track" aria-hidden="true">
+                <span ref={ui.fruitLife} className="hud-fruit-life-fill transition-all duration-150" />
+              </span>
+            </div>
           </div>
           <div ref={ui.sectionBadge} className="hud-section-pill rounded-full px-4 py-1 text-xs font-black uppercase tracking-[0.28em] text-emerald-200">
             Learning Trail
           </div>
-          <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
-            <Icon label="⏱" />
-            <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
-            <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
+          <div className="hud-right-cluster">
+            <div className="hud-control-row pointer-events-auto">
+              <div className="hud-timer-pill flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black text-amber-100">
+                <Icon label="⏱" />
+                <span style={{ fontSize: "10px", letterSpacing: "0.2em", color: "rgba(255,200,100,0.6)" }}>TIME</span>
+                <span ref={ui.timerDisplay} style={{ fontVariantNumeric: "tabular-nums" }}>00:00</span>
+              </div>
+              <button
+                type="button"
+                className="hud-gold-frame-button"
+                onClick={() => setPausedState(true)}
+                aria-label="Pause game and open settings"
+                title="Pause / Settings"
+              >
+                ⚙
+              </button>
+            </div>
+            <div className="hud-score-stack" title="Score from fruit, crates, pineapples, and monkeys">
+              <span className="hud-score-label">Score</span>
+              <span className="hud-score-emphasis hud-gold-outline-text hud-gold-gradient-text" ref={ui.scoreTally}>0</span>
+            </div>
+            <div ref={ui.multiplierBadge}
+              className="hud-multiplier-badge hud-gold-outline-text hud-gold-gradient-text transition-all duration-200"
+              style={{ opacity: 0, transform: "scale(0.85)", color: "#ffd34a" }}>
+              1x COMBO
+            </div>
+            <div className="hud-crate-chip hud-panel-dark" title="Crates smashed">📦 <span ref={ui.cratesTally}>0</span></div>
           </div>
         </div>
       )}
 
-      {/* LEFT PANEL — stamina, lives, charge, state */}
+      {/* LEFT PANEL — stamina, charge, state */}
       {started && !complete && !gameOver && (
         <div className="hud-primary-panel pointer-events-none absolute left-3 top-12 z-20 w-52">
           <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
@@ -2720,12 +2910,6 @@ export default function App() {
           </div>
           <div className="h-3 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div ref={ui.health} className="h-full w-full rounded-full transition-all duration-150" />
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.22em] text-pink-200/70">
-              <Icon label="💗" size={12} /> Herd
-            </span>
-            <span ref={ui.lives} className="text-sm leading-none">🐘🐘🐘🐘🐘</span>
           </div>
           <div className="my-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }} />
           <div className="mb-1 flex items-center justify-between">
@@ -2743,12 +2927,6 @@ export default function App() {
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.35)" }}>
               Ready
             </span>
-          </div>
-          {/* Multiplier badge */}
-          <div ref={ui.multiplierBadge}
-            className="mt-2 text-center text-[12px] font-black tracking-widest transition-all duration-200"
-            style={{ opacity: 0, transform: "scale(0.85)", color: "#ffd34a" }}>
-            1x COMBO
           </div>
           {/* Momentum label */}
           <div className="mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.5rem" }}>
@@ -2772,17 +2950,6 @@ export default function App() {
           </div>
           <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-amber-100/40">
             <Icon label="🎯" size={12} /> Gate at 760 m
-          </div>
-          <div className="mt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.75rem" }}>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-100/70">Next Life</span>
-              <span ref={ui.fruit} className="text-[10px] font-black text-yellow-100">0/100</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div ref={ui.fruitLife} className="h-full w-0 rounded-full transition-all duration-150"
-                style={{ background: "linear-gradient(90deg, #facc15, #84cc16)" }} />
-            </div>
-            <div className="mt-2 text-[9px] tracking-wider text-yellow-100/40">🍋 100 fruit = bonus elephant</div>
           </div>
         </div>
       )}

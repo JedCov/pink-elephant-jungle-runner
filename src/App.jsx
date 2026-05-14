@@ -81,7 +81,7 @@ function AudioControls({ audioState, onToggle, compact = false }) {
   const musicMuted = audioState.muted || audioState.musicMuted;
   const sfxMuted = audioState.muted || audioState.sfxMuted;
   const buttonBase = compact
-    ? "hud-action-button pointer-events-auto rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
+    ? "hud-action-button hud-circle-action-button pointer-events-auto px-3 py-1 text-[10px] font-black uppercase tracking-widest transition hover:scale-105 active:scale-95"
     : "rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition hover:scale-105 active:scale-95";
   const wrapClass = compact ? "pointer-events-auto flex items-center gap-1" : "mt-5 flex flex-wrap items-center justify-center gap-2";
   const stopGestureStart = (event) => {
@@ -1426,6 +1426,7 @@ export default function App() {
     const topPink = makeMaterial("#ff78ca", { roughness: 0.5, emissive: "#4a0628", emissiveIntensity: 0.06 });
     const bellyPink = makeMaterial("#d83f91", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.04 });
     const footPink = makeMaterial("#b72874", { roughness: 0.82, emissive: "#1e0210", emissiveIntensity: 0.035 });
+    const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
     const innerEar = makeMaterial("#ff93d4", { roughness: 0.76 });
     const innerEarGlow = makeMaterial("#ffd0ee", { roughness: 0.66, emissive: "#2f061d", emissiveIntensity: 0.03 });
     const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
@@ -1454,49 +1455,6 @@ export default function App() {
     belly.scale.set(1.08, 0.34, 1.1);
     belly.castShadow = true;
     bodyMesh.add(backHighlight, belly);
-    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
-
-    const makeSegmentBetween = (from, to, topRadius, bottomRadius, material, radialSegments = 8) => {
-      const direction = new THREE.Vector3().subVectors(to, from);
-      const segment = new THREE.Mesh(new THREE.CylinderGeometry(topRadius, bottomRadius, direction.length(), radialSegments, 1), material);
-      segment.position.copy(from).addScaledVector(direction, 0.5);
-      segment.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-      segment.castShadow = true;
-      return segment;
-    };
-
-    const bodyGeo = new THREE.CapsuleGeometry(0.7, 1.65, 4, 10);
-    bodyGeo.rotateX(Math.PI / 2);
-    bodyGeo.scale(1.04, 0.82, 1.02);
-    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
-    bodyMesh.position.y = 1.08;
-    bodyMesh.castShadow = true;
-    const backHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.66, 10, 7), topPink);
-    backHighlight.position.set(0, 0.25, 0.1);
-    backHighlight.scale.set(0.92, 0.38, 1.62);
-    backHighlight.castShadow = true;
-    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 7), bellyPink);
-    belly.position.set(0, -0.42, -0.18);
-    belly.scale.set(1.08, 0.34, 1.1);
-    belly.castShadow = true;
-    bodyMesh.add(backHighlight, belly);
-    const pink = makeMaterial("#ff69c2", { roughness: 0.54, emissive: "#4a0628", emissiveIntensity: 0.09 });
-    const bellyPink = makeMaterial("#d94a9a", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.045 });
-    const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
-    const innerEar = makeMaterial("#ff9fdb", { roughness: 0.78 });
-    const innerEarGlow = makeMaterial("#ffd1f0", { roughness: 0.68, emissive: "#2f061d", emissiveIntensity: 0.035 });
-    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
-
-    const bodyGeo = new THREE.DodecahedronGeometry(1, 1);
-    bodyGeo.scale(1.12, 1.04, 1.42);
-    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
-    bodyMesh.position.y = 1.08; bodyMesh.castShadow = true;
-    const bellyGeo = new THREE.SphereGeometry(0.74, 10, 8);
-    bellyGeo.scale(1.18, 0.62, 0.76);
-    const belly = new THREE.Mesh(bellyGeo, bellyPink);
-    belly.position.set(0, -0.2, -0.6);
-    belly.castShadow = true;
-    bodyMesh.add(belly);
     player.add(bodyMesh);
 
     [-1, 1].forEach((side) => {
@@ -1504,9 +1462,6 @@ export default function App() {
       shoulder.position.set(side * 0.82, 1.18, -0.84);
       shoulder.scale.set(0.76, 0.96, 0.86);
       shoulder.castShadow = true;
-      const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 7), pink);
-      haunch.position.set(side * 0.76, 0.98, 0.96);
-      haunch.scale.set(0.78, 0.88, 0.9);
       const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), bellyPink);
       haunch.position.set(side * 1.02, 1.02, 1.05);
       haunch.scale.set(0.82, 0.95, 0.9);
@@ -1517,7 +1472,6 @@ export default function App() {
     const legCoreGeo = new THREE.CapsuleGeometry(0.2, 0.48, 3, 7);
     const pawGeo = new THREE.SphereGeometry(0.26, 8, 6);
     const toeGeo = new THREE.SphereGeometry(0.055, 6, 4);
-    const legGeo = new THREE.CapsuleGeometry(0.24, 0.52, 3, 8);
     const legAnchors = [
       [-0.66, 0.34, -0.82, 0],
       [0.66, 0.34, -0.82, Math.PI],
@@ -1543,7 +1497,6 @@ export default function App() {
         leg.add(toe);
       });
       leg.add(legCore, paw);
-      const leg = new THREE.Mesh(legGeo, legPink);
       leg.position.set(x, y, z);
       player.add(leg);
       return { mesh: leg, baseX: x, baseY: y, baseZ: z, phase };
@@ -1559,13 +1512,6 @@ export default function App() {
     tailTip.position.set(-0.22, -0.34, 0.9);
     tailTip.scale.set(1.35, 0.62, 0.82);
     tailTip.rotation.z = -0.55;
-    tail.position.set(0, 1.28, 1.54);
-    const tailMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.56, 3, 7), pink);
-    tailMesh.position.z = 0.32;
-    tailMesh.rotation.x = Math.PI / 2;
-    tailMesh.castShadow = true;
-    const tailTip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), innerEarGlow);
-    tailTip.position.z = 0.72;
     tailTip.castShadow = true;
     tail.add(tailTip);
     player.add(tail);
@@ -1636,80 +1582,10 @@ export default function App() {
     const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
     trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
     trunkHighlight.scale.set(1.3, 0.78, 0.9);
-    head.add(earL, earR, inL, inR);
-
-    const trunk = new THREE.Group();
-    trunk.position.set(0, -0.08, -0.5);
-    const trunkPoints = [
-      new THREE.Vector3(0, -0.02, -0.02),
-      new THREE.Vector3(0, -0.24, -0.2),
-      new THREE.Vector3(0, -0.38, -0.42),
-      new THREE.Vector3(0, -0.3, -0.62),
-      new THREE.Vector3(0, -0.12, -0.72),
-    ];
-    const trunkRadii = [0.21, 0.18, 0.15, 0.12, 0.09];
-    for (let i = 0; i < trunkPoints.length - 1; i++) {
-      trunk.add(makeSegmentBetween(trunkPoints[i], trunkPoints[i + 1], trunkRadii[i], trunkRadii[i + 1], i < 2 ? pink : bellyPink, 8));
-    }
-    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
-    trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
-    trunkHighlight.scale.set(1.3, 0.78, 0.9);
-    const headGeo = new THREE.SphereGeometry(0.82, 12, 9);
-    headGeo.scale(0.95, 0.9, 0.9);
-    const headMesh = new THREE.Mesh(headGeo, pink);
-    headMesh.castShadow = true;
-    head.add(headMesh);
-
-    const earGeo = new THREE.SphereGeometry(0.72, 12, 8);
-    earGeo.scale(0.92, 1.16, 0.16);
-    const innerEarGeo = new THREE.SphereGeometry(0.52, 10, 7);
-    innerEarGeo.scale(0.84, 1.08, 0.11);
-    const innerEarGlowGeo = new THREE.SphereGeometry(0.34, 8, 6);
-    innerEarGlowGeo.scale(0.76, 0.98, 0.08);
-    const earL = new THREE.Mesh(earGeo, pink);
-    const earR = new THREE.Mesh(earGeo, pink);
-    earL.position.set(-1.08, -0.02, 0.12); earR.position.set(1.08, -0.02, 0.12);
-    earL.rotation.y = -0.34; earR.rotation.y = 0.34;
-    earL.castShadow = true; earR.castShadow = true;
-    const inL = new THREE.Group();
-    const inR = new THREE.Group();
-    const innerL = new THREE.Mesh(innerEarGeo, innerEar);
-    const innerR = innerL.clone();
-    innerL.position.z = -0.035; innerR.position.z = -0.035;
-    const innerGlowL = new THREE.Mesh(innerEarGlowGeo, innerEarGlow);
-    const innerGlowR = innerGlowL.clone();
-    innerGlowL.position.set(0, 0.1, -0.06); innerGlowR.position.copy(innerGlowL.position);
-    inL.add(innerL, innerGlowL); inR.add(innerR, innerGlowR);
-    inL.position.copy(earL.position); inR.position.copy(earR.position);
-    inL.rotation.y = earL.rotation.y; inR.rotation.y = earR.rotation.y;
-    head.add(earL, earR, inL, inR);
-
-    const trunk = new THREE.Group();
-    trunk.position.set(0, -0.12, -0.74);
-    const trunkSegments = [
-      { y: -0.24, z: -0.08, length: 0.5, top: 0.3, bottom: 0.27, rx: -0.1 },
-      { y: -0.68, z: -0.18, length: 0.52, top: 0.27, bottom: 0.23, rx: -0.24 },
-      { y: -1.08, z: -0.35, length: 0.48, top: 0.23, bottom: 0.19, rx: -0.38 },
-      { y: -1.4, z: -0.58, length: 0.42, top: 0.19, bottom: 0.16, rx: -0.58 },
-    ];
-    trunkSegments.forEach(({ y, z, length, top, bottom, rx }, index) => {
-      const segment = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, length, 8, 1), index < 2 ? pink : bellyPink);
-      segment.position.set(0, y, z);
-      segment.rotation.x = rx;
-      segment.castShadow = true;
-      trunk.add(segment);
-    });
-    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), innerEarGlow);
-    trunkHighlight.position.set(0, -1.6, -0.7);
-    trunkHighlight.scale.set(1.25, 0.7, 0.82);
     trunkHighlight.castShadow = true;
     trunk.add(trunkHighlight);
     head.add(trunk);
 
-    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), dark);
-    eyeL.position.set(-0.24, 0.16, -0.5);
-    eyeL.scale.set(0.78, 1.08, 0.62);
-    const eyeR = eyeL.clone(); eyeR.position.x = 0.24;
     const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), dark);
     eyeL.position.set(-0.38, 0.23, -0.76);
     eyeL.scale.set(0.82, 1.08, 0.7);
@@ -2888,6 +2764,7 @@ export default function App() {
             <span className="title-elephant-leg title-elephant-leg-front" />
             <span className="title-elephant-crown" />
           </span>
+          <span className="hud-ability-status" aria-hidden="true">Charge</span>
         </div>
       )}
       {started && !complete && !gameOver && (
@@ -2900,8 +2777,8 @@ export default function App() {
             </div>
             <div className="hud-icon-row hud-panel-dark">
               <span className="hud-icon-bubble" aria-hidden="true">🐘</span>
-              <span className="hud-icon-row-label">Herd</span>
-              <span ref={ui.lives} className="hud-icon-row-value">🐘🐘🐘🐘🐘</span>
+              <span className="hud-icon-row-label">Lives</span>
+              <span ref={ui.lives} className="hud-icon-row-value hud-lives-value">🐘🐘🐘🐘🐘</span>
             </div>
             <div className="hud-icon-row hud-panel-dark hud-next-life-row">
               <span className="hud-icon-bubble" aria-hidden="true">✨</span>

@@ -1454,6 +1454,32 @@ export default function App() {
     belly.scale.set(1.08, 0.34, 1.1);
     belly.castShadow = true;
     bodyMesh.add(backHighlight, belly);
+    const dark = new THREE.MeshBasicMaterial({ color: "#111111" });
+
+    const makeSegmentBetween = (from, to, topRadius, bottomRadius, material, radialSegments = 8) => {
+      const direction = new THREE.Vector3().subVectors(to, from);
+      const segment = new THREE.Mesh(new THREE.CylinderGeometry(topRadius, bottomRadius, direction.length(), radialSegments, 1), material);
+      segment.position.copy(from).addScaledVector(direction, 0.5);
+      segment.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+      segment.castShadow = true;
+      return segment;
+    };
+
+    const bodyGeo = new THREE.CapsuleGeometry(0.7, 1.65, 4, 10);
+    bodyGeo.rotateX(Math.PI / 2);
+    bodyGeo.scale(1.04, 0.82, 1.02);
+    const bodyMesh = new THREE.Mesh(bodyGeo, pink);
+    bodyMesh.position.y = 1.08;
+    bodyMesh.castShadow = true;
+    const backHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.66, 10, 7), topPink);
+    backHighlight.position.set(0, 0.25, 0.1);
+    backHighlight.scale.set(0.92, 0.38, 1.62);
+    backHighlight.castShadow = true;
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 7), bellyPink);
+    belly.position.set(0, -0.42, -0.18);
+    belly.scale.set(1.08, 0.34, 1.1);
+    belly.castShadow = true;
+    bodyMesh.add(backHighlight, belly);
     const pink = makeMaterial("#ff69c2", { roughness: 0.54, emissive: "#4a0628", emissiveIntensity: 0.09 });
     const bellyPink = makeMaterial("#d94a9a", { roughness: 0.76, emissive: "#250316", emissiveIntensity: 0.045 });
     const legPink = makeMaterial("#c83f8e", { roughness: 0.78, emissive: "#220313", emissiveIntensity: 0.04 });
@@ -1592,6 +1618,24 @@ export default function App() {
     const earR = createEar(1);
     const inL = createInnerEar(-1);
     const inR = createInnerEar(1);
+    head.add(earL, earR, inL, inR);
+
+    const trunk = new THREE.Group();
+    trunk.position.set(0, -0.08, -0.5);
+    const trunkPoints = [
+      new THREE.Vector3(0, -0.02, -0.02),
+      new THREE.Vector3(0, -0.24, -0.2),
+      new THREE.Vector3(0, -0.38, -0.42),
+      new THREE.Vector3(0, -0.3, -0.62),
+      new THREE.Vector3(0, -0.12, -0.72),
+    ];
+    const trunkRadii = [0.21, 0.18, 0.15, 0.12, 0.09];
+    for (let i = 0; i < trunkPoints.length - 1; i++) {
+      trunk.add(makeSegmentBetween(trunkPoints[i], trunkPoints[i + 1], trunkRadii[i], trunkRadii[i + 1], i < 2 ? pink : bellyPink, 8));
+    }
+    const trunkHighlight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 7, 5), innerEarGlow);
+    trunkHighlight.position.copy(trunkPoints[trunkPoints.length - 1]);
+    trunkHighlight.scale.set(1.3, 0.78, 0.9);
     head.add(earL, earR, inL, inR);
 
     const trunk = new THREE.Group();

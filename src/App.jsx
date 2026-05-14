@@ -512,6 +512,11 @@ export default function App() {
       edgeStem: new THREE.CylinderGeometry(0.035, 0.045, 0.5, 5),
       edgeTorchPost: new THREE.CylinderGeometry(0.055, 0.075, 1.0, 6),
       edgeTorchFlame: new THREE.ConeGeometry(0.18, 0.42, 7),
+      broadBananaLeaf: new THREE.PlaneGeometry(0.9, 2.45, 1, 3),
+      hangingVine: new THREE.CylinderGeometry(0.022, 0.032, 1, 5),
+      mossClump: new THREE.DodecahedronGeometry(0.42, 0),
+      foregroundRock: new THREE.DodecahedronGeometry(1, 1),
+      ruinBlockCluster: new THREE.BoxGeometry(1, 1, 1),
       telegraphArrow: new THREE.ConeGeometry(0.38, 0.82, 3),
     };
     const sharedTreeGeometries = {
@@ -669,6 +674,21 @@ export default function App() {
     const edgeTorchPostMat = makeMaterial("#4a2b16", { roughness: 0.86 });
     const edgeTorchFlameMat = new THREE.MeshStandardMaterial({ color: "#ffcf58", roughness: 0.35, emissive: "#ff8c1a", emissiveIntensity: 1.45 });
     const edgeLipHighlightMat = makeMaterial("#ffc66d", { roughness: 0.82, emissive: "#4f2500", emissiveIntensity: 0.18 });
+    const depthEdgeLeafMat = new THREE.MeshStandardMaterial({ color: "#4bea70", roughness: 0.74, emissive: "#bfff6d", emissiveIntensity: 0.22, side: THREE.DoubleSide });
+    const depthEdgeVineMat = makeMaterial("#47d667", { roughness: 0.88, emissive: "#cffc7a", emissiveIntensity: 0.14 });
+    const depthEdgeMossMat = makeMaterial("#72f052", { roughness: 0.96, emissive: "#efff9a", emissiveIntensity: 0.1 });
+    const depthEdgeRockMat = makeMaterial("#9f986f", { roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
+    const depthEdgeRuinMat = makeMaterial("#8f936c", { roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
+    const depthMidLeafMat = new THREE.MeshStandardMaterial({ color: "#1f7b42", roughness: 0.9, side: THREE.DoubleSide });
+    const depthMidVineMat = makeMaterial("#23683b", { roughness: 0.96 });
+    const depthMidMossMat = makeMaterial("#3f7f35", { roughness: 1 });
+    const depthMidRockMat = makeMaterial("#696b58", { roughness: 1 });
+    const depthMidRuinMat = makeMaterial("#5d6651", { roughness: 0.98 });
+    const depthFarLeafMat = new THREE.MeshStandardMaterial({ color: "#18351f", roughness: 1, side: THREE.DoubleSide });
+    const depthFarVineMat = makeMaterial("#142b1c", { roughness: 1 });
+    const depthFarMossMat = makeMaterial("#223a21", { roughness: 1 });
+    const depthFarRockMat = makeMaterial("#343a31", { roughness: 1 });
+    const depthFarRuinMat = makeMaterial("#30372f", { roughness: 1 });
 
     function trackCurvatureCue(z) {
       return Math.abs(trackAngle(z - 18) - trackAngle(z + 18));
@@ -705,6 +725,171 @@ export default function App() {
       flame.castShadow = true;
       torch.add(post, flame);
       return torch;
+    }
+
+    function makeBananaLeafCluster(rng, material, count = 5) {
+      const cluster = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const leaf = new THREE.Mesh(sharedGeometries.broadBananaLeaf, material);
+        leaf.position.set((rng() - 0.5) * 1.45, 1.05 + rng() * 0.75, (rng() - 0.5) * 0.56);
+        leaf.rotation.set(-0.55 - rng() * 0.28, rng() * Math.PI * 2, (rng() - 0.5) * 0.62);
+        leaf.scale.set(0.82 + rng() * 0.55, 0.92 + rng() * 0.7, 1);
+        leaf.castShadow = true;
+        cluster.add(leaf);
+      }
+      return cluster;
+    }
+
+    function makeHangingVineCurtain(rng, vineMaterial, leafMaterial, vineCount = 5) {
+      const curtain = new THREE.Group();
+      for (let i = 0; i < vineCount; i += 1) {
+        const length = 1.65 + rng() * 2.45;
+        const vine = new THREE.Mesh(sharedGeometries.hangingVine, vineMaterial);
+        vine.position.set((i - (vineCount - 1) / 2) * (0.28 + rng() * 0.1), 1.9 - length * 0.5 + rng() * 0.38, (rng() - 0.5) * 0.32);
+        vine.scale.set(0.7 + rng() * 0.65, length, 0.7 + rng() * 0.65);
+        vine.rotation.z = (rng() - 0.5) * 0.18;
+        vine.castShadow = true;
+        curtain.add(vine);
+        if (rng() < 0.45) {
+          const leaf = new THREE.Mesh(sharedGeometries.broadBananaLeaf, leafMaterial);
+          leaf.position.set(vine.position.x + (rng() - 0.5) * 0.32, vine.position.y - length * 0.24, vine.position.z + 0.05);
+          leaf.rotation.set(-0.35, rng() * Math.PI * 2, (rng() - 0.5) * 0.72);
+          leaf.scale.set(0.32 + rng() * 0.22, 0.38 + rng() * 0.28, 1);
+          leaf.castShadow = true;
+          curtain.add(leaf);
+        }
+      }
+      return curtain;
+    }
+
+    function makeMossPatch(rng, material, count = 7) {
+      const patch = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const moss = new THREE.Mesh(sharedGeometries.mossClump, material);
+        const scale = 0.45 + rng() * 0.8;
+        moss.position.set((rng() - 0.5) * 1.8, 0.08 + rng() * 0.12, (rng() - 0.5) * 1.4);
+        moss.scale.set(scale * (1.2 + rng() * 0.6), scale * 0.28, scale * (0.8 + rng() * 0.45));
+        moss.rotation.y = rng() * Math.PI;
+        moss.receiveShadow = true;
+        patch.add(moss);
+      }
+      return patch;
+    }
+
+    function makeLargeRockPile(rng, rockMaterial, mossMaterial, count = 3) {
+      const pile = new THREE.Group();
+      for (let i = 0; i < count; i += 1) {
+        const rock = new THREE.Mesh(sharedGeometries.foregroundRock, rockMaterial);
+        const scale = 0.8 + rng() * 1.2;
+        rock.position.set((rng() - 0.5) * 1.7, scale * 0.28, (rng() - 0.5) * 1.2);
+        rock.scale.set(scale * (1.0 + rng() * 0.6), scale * (0.42 + rng() * 0.25), scale * (0.7 + rng() * 0.5));
+        rock.rotation.set((rng() - 0.5) * 0.28, rng() * Math.PI, (rng() - 0.5) * 0.22);
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        pile.add(rock);
+      }
+      const moss = makeMossPatch(rng, mossMaterial, 3 + Math.floor(rng() * 4));
+      moss.position.y = 0.46;
+      pile.add(moss);
+      return pile;
+    }
+
+    function makeRuinBlockCluster(rng, blockMaterial, mossMaterial, blockCount = 4) {
+      const ruin = new THREE.Group();
+      for (let i = 0; i < blockCount; i += 1) {
+        const block = new THREE.Mesh(sharedGeometries.ruinBlockCluster, blockMaterial);
+        const width = 0.65 + rng() * 0.8;
+        const height = 0.42 + rng() * 1.0;
+        block.position.set((rng() - 0.5) * 2.0, height * 0.5 - 0.02, (rng() - 0.5) * 1.25);
+        block.scale.set(width, height, 0.55 + rng() * 0.72);
+        block.rotation.y = (rng() - 0.5) * 0.36;
+        block.castShadow = true;
+        block.receiveShadow = true;
+        ruin.add(block);
+      }
+      const moss = makeMossPatch(rng, mossMaterial, 4 + Math.floor(rng() * 3));
+      moss.position.set(0, 0.18, 0);
+      ruin.add(moss);
+      return ruin;
+    }
+
+    function addJungleDepthProps() {
+      const depthRng = createSeededRandom(JUNGLE_LAYOUT_SEED);
+      const bands = [
+        {
+          step: 14,
+          zOffset: 1.8,
+          chance: 0.86,
+          minX: safeHalfWidth + 1.65,
+          maxX: safeHalfWidth + 4.15,
+          scale: [1.05, 1.45],
+          group: edgePropGroup,
+          leafMat: depthEdgeLeafMat,
+          vineMat: depthEdgeVineMat,
+          mossMat: depthEdgeMossMat,
+          rockMat: depthEdgeRockMat,
+          ruinMat: depthEdgeRuinMat,
+        },
+        {
+          step: 20,
+          zOffset: -2.6,
+          chance: 0.72,
+          minX: 9.2,
+          maxX: 15.8,
+          scale: [1.55, 2.35],
+          group: treeGroup,
+          leafMat: depthMidLeafMat,
+          vineMat: depthMidVineMat,
+          mossMat: depthMidMossMat,
+          rockMat: depthMidRockMat,
+          ruinMat: depthMidRuinMat,
+        },
+        {
+          step: 28,
+          zOffset: -7.2,
+          chance: 0.62,
+          minX: 18.0,
+          maxX: 30.0,
+          scale: [2.45, 3.8],
+          group: treeGroup,
+          leafMat: depthFarLeafMat,
+          vineMat: depthFarVineMat,
+          mossMat: depthFarMossMat,
+          rockMat: depthFarRockMat,
+          ruinMat: depthFarRuinMat,
+        },
+      ];
+
+      bands.forEach((band, bandIndex) => {
+        for (let z = 8 - bandIndex * 4; z > -812; z -= band.step) {
+          [-1, 1].forEach((side) => {
+            if (depthRng() > band.chance) return;
+            const propZ = z + band.zOffset + (depthRng() - 0.5) * band.step * 0.56;
+            const localX = side * (band.minX + depthRng() * (band.maxX - band.minX));
+            const pos = worldPosition(localX, propZ);
+            let prop;
+            const roll = depthRng();
+            if (roll < 0.26) {
+              prop = makeBananaLeafCluster(depthRng, band.leafMat, 4 + Math.floor(depthRng() * 4));
+            } else if (roll < 0.48) {
+              prop = makeHangingVineCurtain(depthRng, band.vineMat, band.leafMat, 4 + Math.floor(depthRng() * 4));
+              prop.position.y = 0.8 + bandIndex * 0.65;
+            } else if (roll < 0.66) {
+              prop = makeLargeRockPile(depthRng, band.rockMat, band.mossMat, 2 + Math.floor(depthRng() * 4));
+            } else if (roll < 0.84) {
+              prop = makeRuinBlockCluster(depthRng, band.ruinMat, band.mossMat, 3 + Math.floor(depthRng() * 4));
+            } else {
+              prop = makeMossPatch(depthRng, band.mossMat, 5 + Math.floor(depthRng() * 6));
+            }
+            const scale = band.scale[0] + depthRng() * (band.scale[1] - band.scale[0]);
+            prop.scale.multiplyScalar(scale);
+            prop.position.x += pos.x;
+            prop.position.z += pos.z;
+            prop.rotation.y = trackAngle(propZ) + (side < 0 ? -0.28 : 0.28) + (depthRng() - 0.5) * 0.54;
+            band.group.add(prop);
+          });
+        }
+      });
     }
 
     function addEdgeGuidanceProps() {
@@ -769,6 +954,7 @@ export default function App() {
     }
 
     addEdgeGuidanceProps();
+    addJungleDepthProps();
 
     for (let z = 16; z > -824; z -= 8) {
       [-1, 1].forEach((side) => {

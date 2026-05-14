@@ -24,7 +24,7 @@ import { aabb, clamp, createSeededRandom, lerp } from "./game/math.js";
 import { DEFAULT_AUDIO_STATE, createAudioManager, normalizeAudioState } from "./game/audio/audioManager.js";
 import { makeMaterial } from "./game/rendering/materials.js";
 import { createPostProcessing } from "./game/rendering/postprocessing.js";
-import { makeGroundTexture, makePathTexture } from "./game/rendering/textures.js";
+import { makeFoamStreakTexture, makeGroundTexture, makePathTexture, makeWaterRippleTexture } from "./game/rendering/textures.js";
 import {
   createPlayerBody,
   selectPlayerStateLabel,
@@ -551,14 +551,88 @@ export default function App() {
       particlePool.push({ mesh, active: false, life: 0, startLife: 1, vx: 0, vy: 0, vz: 0 });
     }
 
-    const riverMat = new THREE.MeshStandardMaterial({ color: "#237cb4", roughness: 0.35, metalness: 0.08, transparent: true, opacity: 0.82, emissive: "#0a3352", emissiveIntensity: 0.25 });
-    LEVEL.rivers.forEach((river) => {
+    const waterRippleTexture = makeWaterRippleTexture();
+    const foamStreakTexture = makeFoamStreakTexture();
+    const riverMat = new THREE.MeshStandardMaterial({
+      color: "#5fc9ff",
+      map: waterRippleTexture,
+      roughness: 0.28,
+      metalness: 0.04,
+      transparent: true,
+      opacity: 0.88,
+      emissive: "#0b4d78",
+      emissiveIntensity: 0.34,
+    });
+    const foamMat = new THREE.MeshBasicMaterial({
+      color: "#f3fdff",
+      map: foamStreakTexture,
+      transparent: true,
+      opacity: 0.54,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const waterfallMat = new THREE.MeshBasicMaterial({
+      color: "#8ee8ff",
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const waterfallMistMat = new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    LEVEL.rivers.forEach((river, riverIndex) => {
       const cx = trackCenter(river.z);
+      const riverGroup = new THREE.Group();
+      riverGroup.position.set(cx, 0, river.z);
+      riverGroup.rotation.y = trackAngle(river.z);
+      scene.add(riverGroup);
+
       const water = new THREE.Mesh(new THREE.BoxGeometry(river.width, 0.12, river.depth), riverMat);
-      water.position.set(cx, 0.08, river.z);
-      water.rotation.y = trackAngle(river.z);
+      water.position.y = 0.08;
       water.receiveShadow = true;
-      scene.add(water);
+      riverGroup.add(water);
+
+      [-1, 1].forEach((edgeSide) => {
+        const edgeFoam = new THREE.Mesh(new THREE.PlaneGeometry(river.width * 0.96, 0.46), foamMat);
+        edgeFoam.rotation.x = -Math.PI / 2;
+        edgeFoam.position.set(0, 0.165, edgeSide * (river.depth / 2 - 0.2));
+        edgeFoam.renderOrder = 2;
+        riverGroup.add(edgeFoam);
+      });
+
+      river.crocs.forEach((croc) => {
+        const wake = new THREE.Mesh(new THREE.PlaneGeometry(0.72, river.depth * 0.82), foamMat);
+        wake.rotation.x = -Math.PI / 2;
+        wake.position.set(croc.localX, 0.18, 0);
+        wake.renderOrder = 2;
+        riverGroup.add(wake);
+      });
+
+      if (riverIndex % 2 === 0) {
+        const side = riverIndex % 4 === 0 ? -1 : 1;
+        const falls = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * 0.72, 1.65), waterfallMat);
+        falls.rotation.y = Math.PI / 2;
+        falls.position.set(side * (river.width / 2 + 0.18), 0.62, -river.depth * 0.04);
+        riverGroup.add(falls);
+
+        const mist = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * 0.58, 0.34), waterfallMistMat);
+        mist.rotation.x = -Math.PI / 2;
+        mist.position.set(side * (river.width / 2 + 0.22), 0.13, -river.depth * 0.04);
+        riverGroup.add(mist);
+
+        for (let step = 0; step < 3; step += 1) {
+          const drop = new THREE.Mesh(new THREE.PlaneGeometry(river.depth * (0.42 - step * 0.06), 0.2), waterfallMistMat);
+          drop.rotation.x = -Math.PI / 2;
+          drop.position.set(side * (river.width / 2 + 0.34 + step * 0.28), 0.12 + step * 0.16, -river.depth * 0.05);
+          riverGroup.add(drop);
+        }
+      }
+
       river.crocs.forEach((croc) => {
         const group = new THREE.Group();
         const crocMat = makeMaterial("#315b2c");
@@ -1747,6 +1821,8 @@ export default function App() {
 
     function updateMeshes(dt, now) {
       const t = now * 0.001;
+      waterRippleTexture.offset.set((t * 0.045) % 1, (t * 0.16) % 1);
+      foamStreakTexture.offset.set((t * -0.08) % 1, (t * 0.24) % 1);
       updateCrocs(now);
       const charge = clamp(body.speed / MOVEMENT.maxSpeed, 0, 1);
       const sliding = body.slideTimer > 0;

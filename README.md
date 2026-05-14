@@ -71,13 +71,14 @@ Do not collect full names. The UI and database reject empty or malformed initial
 
 Deployment is handled by `.github/workflows/deploy-pages.yml`.
 
-On every push to `main`, the workflow:
+The same workflow validates pull requests into `main`, pushes to `main`, and manual dispatches with the scripts currently defined in `package.json`:
 
 1. Checks out the repository.
 2. Installs Node dependencies.
-3. Runs `npm run build`.
-4. Uploads only the generated `dist/` folder as the GitHub Pages artifact.
-5. Deploys that artifact to GitHub Pages.
+3. Runs `npm run check`.
+4. Runs `npm run build`.
+
+For pull requests, validation stops there so no GitHub Pages deployment is attempted. For pushes to `main` and manual dispatches, the workflow then uploads only the generated `dist/` folder as the GitHub Pages artifact and deploys that artifact to GitHub Pages.
 
 Vite is configured with a relative base path in `vite.config.js`, so the built game can run correctly from the repository subpath used by GitHub Pages.
 

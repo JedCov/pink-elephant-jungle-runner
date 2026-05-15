@@ -1,6 +1,6 @@
 # Follow-up Issue Drafts
 
-These issues capture scoped next steps for Pink Elephant Jungle Runner 2. Each one should preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
+These issues capture scoped next steps for Pink Elephant Jungle Runner. Each one should preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
 
 ## Issue 1: Add local reset and pause controls polish
 

@@ -5,7 +5,7 @@ Use these prompts as one-task Codex assignments derived from `docs/follow-up-iss
 ## Prompt 1: Add local reset and pause controls polish
 
 ```text
-Implement and test only this task for Pink Elephant Jungle Runner 2. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
+Implement and test only this task for Pink Elephant Jungle Runner. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
 
 Detailed task-stub from the follow-up report:
 
@@ -37,7 +37,7 @@ Implementation instructions:
 ## Prompt 2: Seed jungle decoration for replayable procedural variety
 
 ```text
-Implement and test only this task for Pink Elephant Jungle Runner 2. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
+Implement and test only this task for Pink Elephant Jungle Runner. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
 
 Detailed task-stub from the follow-up report:
 
@@ -69,7 +69,7 @@ Implementation instructions:
 ## Prompt 3: Add optional touch controls for mobile play
 
 ```text
-Implement and test only this task for Pink Elephant Jungle Runner 2. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
+Implement and test only this task for Pink Elephant Jungle Runner. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
 
 Detailed task-stub from the follow-up report:
 
@@ -101,7 +101,7 @@ Implementation instructions:
 ## Prompt 4: Batch static props with instancing
 
 ```text
-Implement and test only this task for Pink Elephant Jungle Runner 2. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
+Implement and test only this task for Pink Elephant Jungle Runner. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
 
 Detailed task-stub from the follow-up report:
 
@@ -133,7 +133,7 @@ Implementation instructions:
 ## Prompt 5: Polish procedural audio cues and mix
 
 ```text
-Implement and test only this task for Pink Elephant Jungle Runner 2. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
+Implement and test only this task for Pink Elephant Jungle Runner. Keep the scope small, preserve the game's pink elephant jungle runner identity, its low-poly procedural look, and its lightweight browser footprint. Prefer tuning existing Three.js primitives, generated materials, canvas textures, and Web Audio patterns over introducing heavy external models, texture packs, or audio libraries.
 
 Detailed task-stub from the follow-up report:
 

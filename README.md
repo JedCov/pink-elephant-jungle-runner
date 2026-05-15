@@ -1,10 +1,10 @@
-# Pink Elephant Jungle Runner 2
+# Pink Elephant Jungle Runner
 
-Pink Elephant Jungle Runner 2 is a playable browser game prototype built with React and Three.js. You guide a pink elephant through a jungle runner course, collecting fruit and pineapples, avoiding obstacles, and reaching the jungle gate.
+Pink Elephant Jungle Runner is a playable browser game prototype built with React and Three.js. You guide a pink elephant through a jungle runner course, collecting fruit and pineapples, avoiding obstacles, and reaching the jungle gate.
 
 ## Play the game
 
-Live playable version: https://jedcov.github.io/pink-elephant-jungle-runner2/
+Live playable version: https://jedcov.github.io/pink-elephant-jungle-runner/
 
 ## Controls
 

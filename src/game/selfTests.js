@@ -10,13 +10,20 @@ import {
   playerBox,
   smashBox,
 } from "./collisionHelpers.js";
-import { applyFruitLifeCounter } from "./fruitLife.js";
-import { LEADERBOARD_LIMIT, leaderboardResultQualifies, rankLeaderboardEntries } from "./leaderboard.js";
+import { applyComboScore, applyFruitLifeCounter } from "./fruitLife.js";
+import {
+  LEADERBOARD_LIMIT,
+  leaderboardResultQualifies,
+  normalizeInitials,
+  rankLeaderboardEntries,
+  validateInitials,
+  validateLeaderboardEntry,
+} from "./leaderboard.js";
 import { createKeys, setKeyState } from "./input.js";
 import { isAudioCategoryMuted, normalizeAudioState, resolveTonePlayback } from "./audio/audioManager.js";
 import { TITLE_THEME, noteNameToFrequency } from "./audio/titleTheme.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./track.js";
-import { CONFIG, MOVEMENT } from "./config.js";
+import { CONFIG, MOVEMENT, PICKUPS, SCORING } from "./config.js";
 import { LEVEL } from "./level.js";
 import { LOOP_DIFFICULTIES, LOOP_PROMPT_PLANS, LEVEL_SECTIONS, promptPlanHasCue, sectionDifficulty, sectionMetadata } from "./levelPromptMetadata.js";
 import { LEVEL_PROMPTS, promptForZ } from "./prompts.js";
@@ -74,6 +81,24 @@ export function runSelfTests() {
     { initials: " peppy! ", score: 1, elapsedMs: 1000, date: "2026-05-01T00:00:00.000Z" },
   ]);
   assert("leaderboard normalizes initials to 3 uppercase characters", leaderboardInitials[0].initials === "PEP");
+
+  assert(
+    "leaderboard initials sanitizer keeps only safe 3-character codes",
+    normalizeInitials(" a-2 z! ") === "A2Z" && normalizeInitials("longname") === "LON",
+  );
+  assert(
+    "leaderboard initials validator requires exactly 3 uppercase letters or numbers",
+    validateInitials("A2Z") && !validateInitials("AZ") && !validateInitials("a2z") && !validateInitials("A-Z"),
+  );
+  const validLeaderboardEntry = validateLeaderboardEntry({ initials: " k9p ", score: 12.9, elapsedMs: 333.7, fruit: 2, crates: 1, lives: 5 });
+  const invalidLeaderboardEntry = validateLeaderboardEntry({ initials: "!?", score: 12, elapsedMs: 333 });
+  assert(
+    "leaderboard entry validation returns sanitized safe entries and rejects invalid initials",
+    validLeaderboardEntry.ok
+      && validLeaderboardEntry.entry.initials === "K9P"
+      && validLeaderboardEntry.entry.score === 12
+      && !invalidLeaderboardEntry.ok,
+  );
 
   const fullLeaderboard = Array.from({ length: LEADERBOARD_LIMIT }, (_, index) => ({
     initials: `T${String(index).padStart(2, "0")}`.slice(0, 3),
@@ -345,15 +370,63 @@ export function runSelfTests() {
     !repeatedHurtSkipped.shouldPlay && repeatedHurtSoftened.shouldPlay && repeatedHurtSoftened.volumeScale < 1,
   );
 
-  const pineappleAt80 = applyFruitLifeCounter(80, 20);
+  const fruitProgress = applyFruitLifeCounter(25, PICKUPS.fruitLifeAmount);
+  assert(
+    "fruit life progress advances by the normal fruit amount",
+    fruitProgress.livesAwarded === 0 && fruitProgress.counter === 26,
+  );
+
+  const negativeFruitProgress = applyFruitLifeCounter(-10, -5);
+  assert(
+    "fruit life progress ignores negative counter and pickup values",
+    negativeFruitProgress.livesAwarded === 0 && negativeFruitProgress.counter === 0,
+  );
+
+  const multiLifeProgress = applyFruitLifeCounter(95, 205);
+  assert(
+    "fruit life progress can award multiple bonus lives and keep remainder",
+    multiLifeProgress.livesAwarded === 3 && multiLifeProgress.counter === 0,
+  );
+
+  const pineappleAt80 = applyFruitLifeCounter(80, SCORING.pineappleFruitLifeAmount);
   assert("golden pineapple awards a bonus life at 80 fruit", pineappleAt80.livesAwarded === 1 && pineappleAt80.counter === 0);
 
-  const pineappleAbove80 = applyFruitLifeCounter(85, 20);
+  const pineappleAbove80 = applyFruitLifeCounter(85, SCORING.pineappleFruitLifeAmount);
   assert("golden pineapple carries fruit progress after crossing 100", pineappleAbove80.livesAwarded === 1 && pineappleAbove80.counter === 5);
 
-  const normalFruitAt99 = applyFruitLifeCounter(99, 1);
+  const normalFruitAt99 = applyFruitLifeCounter(99, PICKUPS.fruitLifeAmount);
   assert("normal fruit bonus life threshold still resets at 100", normalFruitAt99.livesAwarded === 1 && normalFruitAt99.counter === 0);
 
+  let scoreState = createPlayerBody();
+  scoreState = { ...scoreState, ...applyComboScore(scoreState, SCORING.fruitPoints) };
+  assert(
+    "score helper adds base fruit points at the current multiplier",
+    scoreState.score === SCORING.fruitPoints
+      && scoreState.multiplierCombo === 1
+      && scoreState.multiplier === 1
+      && scoreState.multiplierTimer === SCORING.comboWindowSeconds,
+  );
+
+  for (let i = 1; i < SCORING.comboPerMultiplier; i++) {
+    scoreState = { ...scoreState, ...applyComboScore(scoreState, SCORING.fruitPoints) };
+  }
+  assert(
+    "combo helper raises the multiplier after enough chained pickups",
+    scoreState.multiplierCombo === SCORING.comboPerMultiplier && scoreState.multiplier === 2,
+  );
+
+  const doubledFruitScore = applyComboScore(scoreState, SCORING.fruitPoints);
+  assert(
+    "combo helper uses the active multiplier for the next score increment",
+    doubledFruitScore.pointsAwarded === SCORING.fruitPoints * 2
+      && doubledFruitScore.score === scoreState.score + SCORING.fruitPoints * 2,
+  );
+
+  const longerComboWindow = applyComboScore({ ...scoreState, multiplierTimer: 1 }, SCORING.cratePoints, SCORING.crateComboWindowSeconds);
+  assert(
+    "combo helper can extend special pickup combo windows",
+    longerComboWindow.multiplierTimer === SCORING.crateComboWindowSeconds,
+  );
 
   const steeringBody = createPlayerBody({ localX: CONFIG.corridorHalfWidth - 0.1 });
   const steeringKeys = createKeys();

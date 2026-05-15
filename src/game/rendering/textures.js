@@ -271,3 +271,17 @@ export function makeFoamStreakTexture() {
 
   return makeCanvasTexture(canvas, { repeat: [2.2, 1] });
 }
+
+export function createSceneTextures() {
+  return {
+    ground: makeGroundTexture(),
+    pathCracks: makePathCrackTexture(),
+    stoneBlocks: makeStoneBlockTexture(),
+    moss: makeMossTexture(),
+    leafVeins: makeLeafVeinTexture(),
+    elephantSkin: makeElephantSkinHighlightTexture(),
+    collectibleGlow: makeCollectibleGlowTexture(),
+    waterRipples: makeWaterRippleTexture(),
+    foam: makeFoamStreakTexture(),
+  };
+}

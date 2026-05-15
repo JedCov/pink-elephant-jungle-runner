@@ -46,7 +46,7 @@ import {
   updatePlayerSpeed,
   updatePlayerSteering,
 } from "./game/movement.js";
-import { applyFruitLifeCounter } from "./game/fruitLife.js";
+import { applyComboScore, applyFruitLifeCounter } from "./game/fruitLife.js";
 import {
   LEADERBOARD_LIMIT,
   isLeaderboardAvailable,
@@ -1903,12 +1903,12 @@ export default function App() {
     }
 
     function collectScore(basePoints, comboWindowSeconds = SCORING.comboWindowSeconds) {
-      const scored = basePoints * body.multiplier;
-      body.score += scored;
-      body.multiplierCombo += 1;
-      body.multiplierTimer = Math.max(body.multiplierTimer, comboWindowSeconds);
-      body.multiplier = Math.min(SCORING.maxMultiplier, 1 + Math.floor(body.multiplierCombo / SCORING.comboPerMultiplier));
-      return scored;
+      const nextScoreState = applyComboScore(body, basePoints, comboWindowSeconds);
+      body.score = nextScoreState.score;
+      body.multiplierCombo = nextScoreState.multiplierCombo;
+      body.multiplierTimer = nextScoreState.multiplierTimer;
+      body.multiplier = nextScoreState.multiplier;
+      return nextScoreState.pointsAwarded;
     }
 
     function addFruitLife(amount) {

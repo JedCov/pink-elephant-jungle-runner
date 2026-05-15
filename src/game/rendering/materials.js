@@ -11,6 +11,7 @@ export function makeMaterial(colour, options = {}) {
     emissiveIntensity: options.emissiveIntensity ?? 0,
     map: options.map ?? null,
     normalMap: options.normalMap ?? null,
+    normalScale: Array.isArray(options.normalScale) ? new THREE.Vector2(options.normalScale[0], options.normalScale[1]) : options.normalScale,
     envMapIntensity: options.envMapIntensity ?? 1,
   };
 

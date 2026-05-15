@@ -20,7 +20,7 @@ Live playable version: https://jedcov.github.io/pink-elephant-jungle-runner/
 ## Main features
 
 - Low-poly 3D jungle runner course starring a pink elephant.
-- Seeded jungle decoration with bigger banana leaves, hanging vines, moss, rocks, ruin silhouettes, and a centralized registry for reusable procedural stone, leaf, moss, path crack, elephant skin, water, foam, and pickup glow textures.
+- Seeded jungle decoration with bigger banana leaves, hanging vines, moss, rocks, ruin silhouettes, and a centralized registry for reusable procedural stone, leaf, moss, path crack, subtle stone/path normal-map, elephant skin, water, foam, and pickup glow textures.
 - Stacked HUD counters for fruit, lives, next extra life progress, score, combo multiplier, timer, and crates.
 - Pause/settings overlay, local self-tests, and optional leaderboard support.
 - GitHub Pages deployment through the included workflow.

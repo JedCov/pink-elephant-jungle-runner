@@ -67,6 +67,61 @@ const JUNGLE_LAYOUT_SEED = 0x5eed2026;
 
 const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
 
+const TOUCH_CONTROL_BUTTONS = [
+  { code: "ArrowUp", label: "Charge", icon: "⬆", hint: "Hold" },
+  { code: "ArrowLeft", label: "Left", icon: "◀", hint: "Steer" },
+  { code: "ArrowRight", label: "Right", icon: "▶", hint: "Steer" },
+  { code: "Space", label: "Jump", icon: "🐘", hint: "Tap" },
+  { code: "Space", label: "Slide", icon: "↧", hint: "Hold" },
+  { code: "KeyZ", label: "Smash", icon: "💥", hint: "Hit" },
+];
+
+function TouchControls({ visible, onControlChange }) {
+  if (!visible) return null;
+
+  const handlePointerDown = (event, code) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    onControlChange(code, true);
+  };
+  const handlePointerUp = (event, code) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onControlChange(code, false);
+  };
+  const handlePointerCancel = (event, code) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onControlChange(code, false);
+  };
+
+  return (
+    <div className="touch-controls" aria-label="Touch game controls">
+      {TOUCH_CONTROL_BUTTONS.map(({ code, label, icon, hint }) => (
+        <button
+          key={`${code}-${label}`}
+          type="button"
+          className={`touch-control-button touch-control-${label.toLowerCase()}`}
+          aria-label={`${label} control`}
+          onContextMenu={(event) => event.preventDefault()}
+          onPointerDown={(event) => handlePointerDown(event, code)}
+          onPointerUp={(event) => handlePointerUp(event, code)}
+          onPointerCancel={(event) => handlePointerCancel(event, code)}
+          onPointerLeave={(event) => handlePointerCancel(event, code)}
+        >
+          <span className="touch-control-icon" aria-hidden="true">{icon}</span>
+          <span className="touch-control-label">{label}</span>
+          <span className="touch-control-hint">{hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function createBroadBananaLeafGeometry() {
   const shape = new THREE.Shape();
   shape.moveTo(0, 1.28);
@@ -340,6 +395,7 @@ export default function App() {
   const resetGameRef = useRef(null);
   const stampedeRef = useRef({ nextStepTime: 0 });
   const gameStartTimeRef = useRef(null);
+  const touchInputDetectedRef = useRef(false);
 
   const [started, setStarted] = useState(false);
   const [complete, setComplete] = useState(false);
@@ -360,6 +416,7 @@ export default function App() {
     error: null,
   });
   const [audioState, setAudioState] = useState(readStoredAudioState);
+  const [touchControlsVisible, setTouchControlsVisible] = useState(false);
 
   const ui = {
     health: useRef(null),
@@ -414,6 +471,42 @@ export default function App() {
 
   function startAudio() {
     return audioManagerRef.current?.startAudio() ?? null;
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const query = window.matchMedia("(max-width: 760px), (max-height: 560px), (pointer: coarse)");
+    const updateVisibility = () => setTouchControlsVisible(query.matches || touchInputDetectedRef.current);
+    const showForTouchInput = (event) => {
+      if (!event.pointerType || event.pointerType !== "mouse") {
+        touchInputDetectedRef.current = true;
+        updateVisibility();
+      }
+    };
+    const showForTouchStart = () => {
+      touchInputDetectedRef.current = true;
+      updateVisibility();
+    };
+
+    updateVisibility();
+    query.addEventListener?.("change", updateVisibility);
+    window.addEventListener("pointerdown", showForTouchInput, { passive: true });
+    window.addEventListener("touchstart", showForTouchStart, { passive: true });
+
+    return () => {
+      query.removeEventListener?.("change", updateVisibility);
+      window.removeEventListener("pointerdown", showForTouchInput);
+      window.removeEventListener("touchstart", showForTouchStart);
+    };
+  }, []);
+
+  function handleTouchControlChange(code, isPressed) {
+    if (pausedRef.current || completeRef.current || gameOverRef.current) {
+      setKeyState(keyRef.current, code, false);
+      return;
+    }
+    setKeyState(keyRef.current, code, isPressed);
   }
 
   function applyAudioState(nextState) {
@@ -2943,6 +3036,10 @@ export default function App() {
           </div>
           <canvas ref={ui.speedo} className="hud-speedometer" width={120} height={120} />
         </div>
+      )}
+
+      {started && !complete && !gameOver && (
+        <TouchControls visible={touchControlsVisible} onControlChange={handleTouchControlChange} />
       )}
 
       {/* START SCREEN */}

@@ -8,9 +8,12 @@ Live playable version: https://jedcov.github.io/pink-elephant-jungle-runner/
 
 ## Controls
 
-- **Move:** Arrow keys or WASD.
-- **Jump:** Space, Arrow Up, or W.
-- **Slide / duck:** Arrow Down or S.
+- **Charge / run:** Hold ↑ or W to build elephant charge and speed up.
+- **Steer:** Use ← / A and → / D to move left and right.
+- **Jump:** Tap Space.
+- **Slide:** Hold Space to slide under hazards.
+- **Smash / Spin:** Press Z or E for elephant attacks when available.
+- **Touch controls:** On phones, tablets, small screens, or touch devices, use the on-screen buttons for Charge, Left, Right, Jump, Slide, and Smash.
 - **Pause and settings:** Use the gold gear button in the HUD.
 - **Audio:** Use the sound, music, and SFX buttons at the bottom left during play.
 
@@ -113,7 +116,7 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 │   ├── game/
 │   │   ├── audio.js           # Music note data and frequency helper
 │   │   ├── config.js          # Core movement, camera, and world constants
-│   │   ├── input.js           # Keyboard state helpers
+│   │   ├── input.js           # Keyboard and touch control state helpers
 │   │   ├── level.js           # Level layout: fruit, obstacles, rivers, enemies
 │   │   ├── math.js            # Shared math and collision helpers
 │   │   ├── selfTests.js       # Lightweight runtime sanity checks
@@ -134,7 +137,7 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 - **Movement and camera constants:** `src/game/config.js`
 - **Level and obstacle placement:** `src/game/level.js`
 - **Collision helpers:** `src/game/math.js`
-- **Keyboard controls:** `src/game/input.js`
+- **Keyboard and touch controls:** `src/game/input.js`
 - **Track curve helpers:** `src/game/track.js`
 - **Generated materials/textures:** `src/game/rendering/`
 - **HUD styling:** `src/styles/game-ui.css`

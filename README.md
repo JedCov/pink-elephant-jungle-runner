@@ -122,8 +122,10 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 │   │   ├── selfTests.js       # Lightweight runtime sanity checks
 │   │   ├── track.js           # Curved jungle path coordinate helpers
 │   │   └── rendering/
-│   │       ├── materials.js   # Three.js material factory
-│   │       └── textures.js    # Generated canvas textures for terrain, props, leaves, player, and pickups
+│   │       ├── decorativeProps.js # Decorative leaf, moss, rock, and ruin prop builders
+│   │       ├── jungleProps.js     # Low-poly tree and bush builders
+│   │       ├── materials.js       # Three.js material factory
+│   │       └── textures.js        # Generated canvas textures for terrain, props, leaves, player, and pickups
 │   └── styles/
 │       └── game-ui.css        # Local utility CSS used by the HUD overlays
 ├── package.json               # Scripts and dependencies
@@ -139,7 +141,7 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 - **Collision helpers:** `src/game/math.js`
 - **Keyboard and touch controls:** `src/game/input.js`
 - **Track curve helpers:** `src/game/track.js`
-- **Generated materials/textures:** `src/game/rendering/`
+- **Generated materials, textures, and decorative prop builders:** `src/game/rendering/`
 - **HUD styling:** `src/styles/game-ui.css`
 
 ## Adding Future Assets or Levels
@@ -155,4 +157,4 @@ GitHub-ready follow-up issue drafts live in `docs/follow-up-issues.md`. Codex-re
 
 ## Notes for Future Cleanup
 
-The refactor keeps gameplay conservative: the main scene and update loop remain in `src/App.jsx` to avoid changing behaviour accidentally. Future work can gradually extract larger systems, such as player physics, obstacle collision handling, audio playback, and enemy updates, once there are automated browser-level regression checks.
+The refactor keeps gameplay conservative: the main scene and update loop remain in `src/App.jsx`, while decorative jungle prop builders live in `src/game/rendering/` to avoid changing behaviour accidentally. Future work can gradually extract larger systems, such as player physics, obstacle collision handling, audio playback, and enemy updates, once there are automated browser-level regression checks.

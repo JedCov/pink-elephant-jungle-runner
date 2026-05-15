@@ -1058,14 +1058,15 @@ export default function App() {
       pickups.push({ type: "health", mesh: group, active: true, x: posOnPath.x, y: 1.25, z: posOnPath.z, radius: PICKUPS.healthRadius });
     });
 
-    const logMat = makeMaterial("#6a3f22");
-    const crateMat = makeMaterial("#8f8a71", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.94 });
-    const crateBandMat = makeMaterial("#e2b156");
-    const branchLimbMat = makeMaterial("#452817");
-    const branchLeafMat = makeMaterial("#17713d", { map: textures.leafVeins, roughness: 0.86 });
+    const logMat = makeMaterial("#6a3f22", { roughness: 0.88 });
+    // Gameplay still calls these smashable obstacles "crates", but they render as heavy stone blocks.
+    const stoneBlockMat = makeMaterial("#8f8a71", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.94 });
+    const stoneBlockBandMat = makeMaterial("#5f5b4a", { roughness: 0.98 });
+    const branchLimbMat = makeMaterial("#452817", { roughness: 0.9 });
+    const branchLeafMat = makeMaterial("#17713d", { map: textures.leafVeins, roughness: 0.86, emissive: "#0b351b", emissiveIntensity: 0.12 });
     const cueLeafShadowMat = makeMaterial("#0b1b11", { transparent: true, opacity: 0.46, roughness: 1 });
     const cueMudMat = makeMaterial("#3f2616", { roughness: 1 });
-    const cueCratePlankMat = makeMaterial("#b77a3d", { roughness: 0.9 });
+    const cueStoneBlockMarkerMat = makeMaterial("#d0c27f", { roughness: 0.9 });
     const cueRippleMat = makeMaterial("#9de7ff", { transparent: true, opacity: 0.68, roughness: 0.45, emissive: "#124d66", emissiveIntensity: 0.2 });
     const cueEyeMat = new THREE.MeshStandardMaterial({ color: "#ff2a1c", emissive: "#ff1200", emissiveIntensity: 2.8 });
     const telegraphRingMat = new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.22, depthWrite: false });
@@ -1143,16 +1144,16 @@ export default function App() {
       cue.add(smear);
     }
 
-    function addCratePlankCue(crate) {
+    function addStoneBlockMarkerCue(crate) {
       const cue = createCueGroup(crate.localX, crate.z, 4.9);
       [-0.58, 0, 0.58].forEach((xOffset, index) => {
-        const plank = new THREE.Mesh(sharedGeometries.unitBox, cueCratePlankMat);
-        plank.position.set(xOffset, 0.18 + index * 0.015, (index - 1) * 0.28);
-        plank.scale.set(0.82, 0.08, 0.22);
-        plank.rotation.y = [-0.55, 0.18, 0.62][index];
-        plank.castShadow = true;
-        plank.receiveShadow = true;
-        cue.add(plank);
+        const marker = new THREE.Mesh(sharedGeometries.unitBox, cueStoneBlockMarkerMat);
+        marker.position.set(xOffset, 0.18 + index * 0.015, (index - 1) * 0.28);
+        marker.scale.set(0.82, 0.08, 0.22);
+        marker.rotation.y = [-0.55, 0.18, 0.62][index];
+        marker.castShadow = true;
+        marker.receiveShadow = true;
+        cue.add(marker);
       });
     }
 
@@ -1200,16 +1201,16 @@ export default function App() {
     });
 
     LEVEL.crates.forEach((crate) => {
-      addCratePlankCue(crate);
+      addStoneBlockMarkerCue(crate);
       registerObstacleTelegraph({ localX: crate.localX, z: crate.z, type: "crate", distance: 8.4, width: crate.width });
       const posOnPath = worldPosition(crate.localX, crate.z);
       const group = new THREE.Group();
       group.position.set(posOnPath.x, crate.height / 2, posOnPath.z);
-      const box = new THREE.Mesh(sharedGeometries.unitBox, crateMat);
+      const box = new THREE.Mesh(sharedGeometries.unitBox, stoneBlockMat);
       box.scale.set(crate.width, crate.height, crate.depth);
-      const bandH = new THREE.Mesh(sharedGeometries.unitBox, crateBandMat);
+      const bandH = new THREE.Mesh(sharedGeometries.unitBox, stoneBlockBandMat);
       bandH.scale.set(crate.width + 0.08, 0.18, crate.depth + 0.08);
-      const bandV = new THREE.Mesh(sharedGeometries.unitBox, crateBandMat);
+      const bandV = new THREE.Mesh(sharedGeometries.unitBox, stoneBlockBandMat);
       bandV.scale.set(0.2, crate.height + 0.08, crate.depth + 0.08);
       box.castShadow = true; box.receiveShadow = true;
       group.add(box, bandH, bandV);

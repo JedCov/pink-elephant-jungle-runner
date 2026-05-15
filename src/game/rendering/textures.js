@@ -111,6 +111,88 @@ export function makeStoneBlockTexture() {
   return makeCanvasTexture(canvas, { repeat: [1.2, 1.2] });
 }
 
+export function makePathCrackNormalMap() {
+  const { canvas, ctx, size } = createCanvas(256, "#8080ff");
+
+  for (let i = 0; i < 420; i += 1) {
+    const x = (i * 37) % size;
+    const y = (i * 61) % size;
+    ctx.fillStyle = i % 2 === 0 ? "rgba(150,155,255,0.16)" : "rgba(91,86,210,0.12)";
+    ctx.fillRect(x, y, 1 + (i % 3), 1 + ((i * 3) % 3));
+  }
+
+  for (let i = 0; i < 18; i += 1) {
+    const startX = (i * 47 + 19) % size;
+    const startY = (i * 83 + 11) % size;
+    const points = [[startX, startY]];
+    for (let step = 0; step < 5; step += 1) {
+      points.push([
+        startX + (step + 1) * (9 + (i % 5)) * (i % 2 === 0 ? 1 : -1) + Math.sin(i + step) * 8,
+        startY + (step + 1) * (6 + ((i + step) % 4)) + Math.cos(i * 0.7 + step) * 7,
+      ]);
+    }
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    points.forEach(([x, y], index) => (index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+    ctx.strokeStyle = "rgba(58,48,184,0.5)";
+    ctx.lineWidth = 1.4 + (i % 3) * 0.45;
+    ctx.stroke();
+
+    ctx.beginPath();
+    points.forEach(([x, y], index) => {
+      const lift = index % 2 === 0 ? -1.4 : 1.4;
+      return index === 0 ? ctx.moveTo(x + lift, y - lift) : ctx.lineTo(x + lift, y - lift);
+    });
+    ctx.strokeStyle = "rgba(178,185,255,0.24)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  return makeCanvasTexture(canvas, { repeat: [1.3, 2.1], colorSpace: null });
+}
+
+export function makeStoneBlockNormalMap() {
+  const { canvas, ctx, size } = createCanvas(256, "#8080ff");
+  const block = 64;
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (let y = 0; y <= size; y += block) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + Math.sin(y) * 2);
+    ctx.lineTo(size, y + Math.cos(y) * 2);
+    ctx.strokeStyle = "rgba(57,50,181,0.42)";
+    ctx.lineWidth = 2.1;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(174,181,255,0.22)";
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+  }
+
+  for (let x = 0; x <= size; x += block) {
+    ctx.beginPath();
+    ctx.moveTo(x + Math.sin(x) * 2, 0);
+    ctx.lineTo(x + Math.cos(x) * 2, size);
+    ctx.strokeStyle = "rgba(61,52,186,0.36)";
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(166,174,255,0.2)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  for (let i = 0; i < 300; i += 1) {
+    const x = (i * 41) % size;
+    const y = (i * 67) % size;
+    ctx.fillStyle = i % 3 === 0 ? "rgba(68,58,190,0.16)" : "rgba(162,169,255,0.14)";
+    ctx.fillRect(x, y, 1 + (i % 3), 1 + ((i + 2) % 3));
+  }
+
+  return makeCanvasTexture(canvas, { repeat: [1.2, 1.2], colorSpace: null });
+}
+
 export function makeMossTexture() {
   const { canvas, ctx, size } = createCanvas(256, "#2e6f31");
   const gradient = ctx.createRadialGradient(size * 0.36, size * 0.32, 12, size * 0.5, size * 0.5, size * 0.75);
@@ -276,7 +358,9 @@ export function createSceneTextures() {
   return {
     ground: makeGroundTexture(),
     pathCracks: makePathCrackTexture(),
+    pathCrackNormal: makePathCrackNormalMap(),
     stoneBlocks: makeStoneBlockTexture(),
+    stoneBlockNormal: makeStoneBlockNormalMap(),
     moss: makeMossTexture(),
     leafVeins: makeLeafVeinTexture(),
     elephantSkin: makeElephantSkinHighlightTexture(),

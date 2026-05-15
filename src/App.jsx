@@ -544,7 +544,7 @@ export default function App() {
 
     const pathGroup = new THREE.Group();
     scene.add(pathGroup);
-    const pathMat = makeMaterial("#b87938", { map: textures.pathCracks, roughness: 0.95 });
+    const pathMat = makeMaterial("#b87938", { map: textures.pathCracks, normalMap: textures.pathCrackNormal, normalScale: [0.32, 0.32], roughness: 0.95 });
     const shoulderMat = makeMaterial("#6f4a27", { roughness: 1 });
     const bankMat = makeMaterial("#174026", { roughness: 1 });
     const lipMat = makeMaterial("#d5a25b", { roughness: 0.92 });
@@ -679,7 +679,7 @@ export default function App() {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    const riverStoneMat = makeMaterial("#817e68", { map: textures.stoneBlocks, roughness: 0.94 });
+    const riverStoneMat = makeMaterial("#817e68", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.94 });
     LEVEL.rivers.forEach((river, riverIndex) => {
       const cx = trackCenter(river.z);
       const riverGroup = new THREE.Group();
@@ -767,7 +767,7 @@ export default function App() {
 
     const edgePropGroup = new THREE.Group();
     scene.add(edgePropGroup);
-    const edgeStoneMat = makeMaterial("#8f8a71", { map: textures.stoneBlocks, roughness: 0.96 });
+    const edgeStoneMat = makeMaterial("#8f8a71", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.96 });
     const edgeFlowerMats = [
       makeMaterial("#ffd84d", { roughness: 0.72, emissive: "#3a2600", emissiveIntensity: 0.16 }),
       makeMaterial("#ff7fb2", { roughness: 0.76, emissive: "#3a061a", emissiveIntensity: 0.12 }),
@@ -780,18 +780,18 @@ export default function App() {
     const depthEdgeLeafMat = makeMaterial("#4bea70", { map: textures.leafVeins, roughness: 0.74, emissive: "#bfff6d", emissiveIntensity: 0.22, side: THREE.DoubleSide });
     const depthEdgeVineMat = makeMaterial("#47d667", { roughness: 0.88, emissive: "#cffc7a", emissiveIntensity: 0.14 });
     const depthEdgeMossMat = makeMaterial("#72f052", { map: textures.moss, roughness: 0.96, emissive: "#efff9a", emissiveIntensity: 0.1 });
-    const depthEdgeRockMat = makeMaterial("#9f986f", { map: textures.stoneBlocks, roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
-    const depthEdgeRuinMat = makeMaterial("#8f936c", { map: textures.stoneBlocks, roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
+    const depthEdgeRockMat = makeMaterial("#9f986f", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 1, emissive: "#ffd36c", emissiveIntensity: 0.08 });
+    const depthEdgeRuinMat = makeMaterial("#8f936c", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.96, emissive: "#ffe08a", emissiveIntensity: 0.07 });
     const depthMidLeafMat = makeMaterial("#1f7b42", { map: textures.leafVeins, roughness: 0.9, side: THREE.DoubleSide });
     const depthMidVineMat = makeMaterial("#23683b", { roughness: 0.96 });
     const depthMidMossMat = makeMaterial("#3f7f35", { map: textures.moss, roughness: 1 });
-    const depthMidRockMat = makeMaterial("#696b58", { map: textures.stoneBlocks, roughness: 1 });
-    const depthMidRuinMat = makeMaterial("#5d6651", { map: textures.stoneBlocks, roughness: 0.98 });
+    const depthMidRockMat = makeMaterial("#696b58", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 1 });
+    const depthMidRuinMat = makeMaterial("#5d6651", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.98 });
     const depthFarLeafMat = makeMaterial("#18351f", { map: textures.leafVeins, roughness: 1, side: THREE.DoubleSide });
     const depthFarVineMat = makeMaterial("#142b1c", { roughness: 1 });
     const depthFarMossMat = makeMaterial("#223a21", { map: textures.moss, roughness: 1 });
-    const depthFarRockMat = makeMaterial("#343a31", { map: textures.stoneBlocks, roughness: 1 });
-    const depthFarRuinMat = makeMaterial("#30372f", { map: textures.stoneBlocks, roughness: 1 });
+    const depthFarRockMat = makeMaterial("#343a31", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 1 });
+    const depthFarRuinMat = makeMaterial("#30372f", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 1 });
 
     function trackCurvatureCue(z) {
       return Math.abs(trackAngle(z - 18) - trackAngle(z + 18));
@@ -1059,7 +1059,7 @@ export default function App() {
     });
 
     const logMat = makeMaterial("#6a3f22");
-    const crateMat = makeMaterial("#8f8a71", { map: textures.stoneBlocks, roughness: 0.94 });
+    const crateMat = makeMaterial("#8f8a71", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.94 });
     const crateBandMat = makeMaterial("#e2b156");
     const branchLimbMat = makeMaterial("#452817");
     const branchLeafMat = makeMaterial("#17713d", { map: textures.leafVeins, roughness: 0.86 });
@@ -1368,7 +1368,7 @@ export default function App() {
 
     gate.position.set(trackCenter(LEVEL.gate.z), 0, LEVEL.gate.z);
     gate.rotation.y = trackAngle(LEVEL.gate.z);
-    const gateMat = makeMaterial("#d9b863", { map: textures.stoneBlocks, roughness: 0.55, emissive: "#4d2f05", emissiveIntensity: 0.2, envMapIntensity: 1.15 });
+    const gateMat = makeMaterial("#d9b863", { map: textures.stoneBlocks, normalMap: textures.stoneBlockNormal, normalScale: [0.28, 0.28], roughness: 0.55, emissive: "#4d2f05", emissiveIntensity: 0.2, envMapIntensity: 1.15 });
     const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1, 6, 1.2), gateMat);
     pillarL.position.set(-3.6, 3, 0);
     const pillarR = pillarL.clone(); pillarR.position.x = 3.6;

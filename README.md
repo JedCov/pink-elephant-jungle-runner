@@ -21,6 +21,7 @@ Live playable version: https://jedcov.github.io/pink-elephant-jungle-runner/
 
 - Low-poly 3D jungle runner course starring a pink elephant.
 - Seeded jungle decoration with bigger banana leaves, hanging vines, moss, rocks, ruin silhouettes, and a centralized registry for reusable procedural stone, leaf, moss, path crack, subtle stone/path normal-map, elephant skin, water, foam, and pickup glow textures.
+- Hidden development-only texture preview flag in `src/App.jsx` for checking generated texture thumbnails while keeping normal gameplay clean.
 - Stacked HUD counters for fruit, lives, next extra life progress, score, combo multiplier, timer, and crates.
 - Pause/settings overlay, local self-tests, and optional leaderboard support.
 - GitHub Pages deployment through the included workflow.
@@ -142,6 +143,7 @@ Vite is configured with a relative base path in `vite.config.js`, so the built g
 - **Keyboard and touch controls:** `src/game/input.js`
 - **Track curve helpers:** `src/game/track.js`
 - **Generated materials, textures, and decorative prop builders:** `src/game/rendering/`
+- **Development texture preview:** `SHOW_TEXTURE_PREVIEW` near the top of `src/App.jsx`; leave it `false` unless you are debugging generated textures locally.
 - **HUD styling:** `src/styles/game-ui.css`
 
 ## Adding Future Assets or Levels

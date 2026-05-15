@@ -60,6 +60,8 @@ import { runSelfTests } from "./game/selfTests.js";
 import { trackAngle, trackCenter, worldPosition, worldX } from "./game/track.js";
 
 const nl = String.fromCharCode(10);
+// Development-only helper: turn this on locally to inspect generated texture canvases.
+const SHOW_TEXTURE_PREVIEW = false;
 const JUNGLE_LAYOUT_SEED = 0x5eed2026;
 
 const AUDIO_PREFS_KEY = "pink-elephant-audio-state";
@@ -72,6 +74,95 @@ const TOUCH_CONTROL_BUTTONS = [
   { code: "Space", label: "Slide", icon: "↧", hint: "Hold" },
   { code: "KeyZ", label: "Smash", icon: "💥", hint: "Hit" },
 ];
+
+
+function createTexturePreviewPanel(textures) {
+  if (!SHOW_TEXTURE_PREVIEW || typeof document === "undefined") return null;
+
+  const panel = document.createElement("aside");
+  panel.setAttribute("aria-label", "Development texture preview");
+  Object.assign(panel.style, {
+    position: "absolute",
+    right: "12px",
+    top: "12px",
+    zIndex: "40",
+    width: "min(360px, calc(100vw - 24px))",
+    maxHeight: "calc(100vh - 24px)",
+    overflow: "auto",
+    padding: "12px",
+    border: "1px solid rgba(253, 230, 138, 0.42)",
+    borderRadius: "18px",
+    background: "rgba(10, 20, 12, 0.82)",
+    boxShadow: "0 18px 42px rgba(0, 0, 0, 0.34)",
+    color: "#fef3c7",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    pointerEvents: "none",
+  });
+
+  const title = document.createElement("div");
+  title.textContent = "Texture Preview (dev only)";
+  Object.assign(title.style, {
+    marginBottom: "10px",
+    fontSize: "11px",
+    fontWeight: "900",
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+  });
+  panel.appendChild(title);
+
+  const grid = document.createElement("div");
+  Object.assign(grid.style, {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
+    gap: "10px",
+  });
+
+  Object.entries(textures).forEach(([name, texture]) => {
+    const source = texture?.image;
+    if (!source) return;
+
+    const card = document.createElement("figure");
+    Object.assign(card.style, { margin: "0" });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 96;
+    canvas.height = 96;
+    Object.assign(canvas.style, {
+      display: "block",
+      width: "96px",
+      height: "96px",
+      borderRadius: "12px",
+      border: "1px solid rgba(255, 255, 255, 0.18)",
+      background: "rgba(255, 255, 255, 0.08)",
+      imageRendering: "auto",
+    });
+
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    }
+
+    const label = document.createElement("figcaption");
+    label.textContent = name;
+    Object.assign(label.style, {
+      marginTop: "4px",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      color: "rgba(254, 243, 199, 0.74)",
+      fontSize: "10px",
+      fontWeight: "800",
+      textAlign: "center",
+    });
+
+    card.append(canvas, label);
+    grid.appendChild(card);
+  });
+
+  panel.appendChild(grid);
+  return panel;
+}
 
 function TouchControls({ visible, onControlChange }) {
   if (!visible) return null;
@@ -537,6 +628,9 @@ export default function App() {
     scene.add(sun);
 
     const textures = createSceneTextures();
+    const texturePreviewPanel = createTexturePreviewPanel(textures);
+    if (texturePreviewPanel) mount.appendChild(texturePreviewPanel);
+
     const jungle = new THREE.Mesh(new THREE.BoxGeometry(CONFIG.floorWidth, 1.2, CONFIG.floorLength), new THREE.MeshStandardMaterial({ map: textures.ground, roughness: 0.98 }));
     jungle.position.set(0, -0.62, -CONFIG.floorLength / 2 + 20);
     jungle.receiveShadow = true;
@@ -2574,6 +2668,7 @@ export default function App() {
       renderer.dispose();
       renderer.forceContextLoss();
       scene.clear();
+      if (texturePreviewPanel?.parentElement === mount) mount.removeChild(texturePreviewPanel);
       if (mount && renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
       audioManagerRef.current?.dispose();
     };

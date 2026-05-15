@@ -1,6 +1,8 @@
 export const LEADERBOARD_LIMIT = 20;
 
-const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner2.leaderboard.v1";
+const LOCAL_STORAGE_KEY = "pink-elephant-jungle-runner.leaderboard.v1";
+// Keep reading the old repo-name key so existing browser scores survive the rename.
+const LEGACY_LOCAL_STORAGE_KEYS = ["pink-elephant-jungle-runner2.leaderboard.v1"];
 const DEFAULT_TABLE = "leaderboard";
 const MAX_ENTRIES = LEADERBOARD_LIMIT;
 const INITIALS_PATTERN = /^[A-Z0-9]{3}$/;
@@ -134,12 +136,27 @@ function normalizeRemoteRow(row) {
   });
 }
 
+function readStoredLeaderboard(key) {
+  const parsed = JSON.parse(window.localStorage.getItem(key) || "[]");
+  return Array.isArray(parsed) ? parsed : [];
+}
+
 function readLocalLeaderboard() {
   if (typeof window === "undefined" || !window.localStorage) return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_KEY) || "[]");
-    if (!Array.isArray(parsed)) return [];
-    return sortEntries(parsed);
+    const currentEntries = readStoredLeaderboard(LOCAL_STORAGE_KEY);
+    if (currentEntries.length > 0) return sortEntries(currentEntries);
+
+    for (const legacyKey of LEGACY_LOCAL_STORAGE_KEYS) {
+      const legacyEntries = readStoredLeaderboard(legacyKey);
+      if (legacyEntries.length > 0) {
+        const sortedEntries = sortEntries(legacyEntries);
+        writeLocalLeaderboard(sortedEntries);
+        return sortedEntries;
+      }
+    }
+
+    return [];
   } catch (error) {
     console.warn("Pink Elephant leaderboard local read failed", error);
     return [];
